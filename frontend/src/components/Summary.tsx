@@ -13,7 +13,7 @@ export function Summary({ result }: { result: ScanResult }) {
     <div className="card">
       <div className="row">
         <div><b>{cs.length}</b> components<br /><span className="muted">{direct} direct · {cs.length - direct} transitive</span></div>
-        <div><b>{cs.filter((c) => c.needsReview).length}</b> need review</div>
+        <div><b>{cs.filter((c) => c.needsReview).length}</b> need review<br /><span className="muted">{cs.filter((c) => c.foundBy.length === 1).length} found by one tool only</span></div>
         <div><b>Ecosystems</b><br />{top(cs.map((c) => c.ecosystem), 10).map(([k, v]) => <span key={k} className="badge" style={{ marginRight: 4 }}>{k} {v}</span>)}</div>
         <div><b>Top licenses</b><br />{top(cs.map((c) => c.licenses?.value ?? '(unresolved)'), 10).map(([k, v]) => <span key={k} className="badge" style={{ marginRight: 4 }}>{k} {v}</span>)}</div>
       </div>

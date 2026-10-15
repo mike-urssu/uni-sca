@@ -69,6 +69,11 @@ class EmitTest {
         assertEquals(1, w.count { it.code == "NTIA_MISSING" && it.message.startsWith("supplier") })
     }
 
+    @Test fun `report counts single-tool findings separately`() {
+        ReportWriter.write(result, tmp.resolve("s.html"))
+        assertTrue(Files.readString(tmp.resolve("s.html")).contains("${result.components.count { it.foundBy.size == 1 }} found by one tool only"))
+    }
+
     @Test fun `report escapes html`() {
         ReportWriter.write(result.copy(components = listOf(result.components[0].copy(name = "<script>x"))), tmp.resolve("r.html"))
         assertFalse(Files.readString(tmp.resolve("r.html")).contains("<script>x"))

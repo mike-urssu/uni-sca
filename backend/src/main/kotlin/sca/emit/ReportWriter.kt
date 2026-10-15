@@ -23,7 +23,7 @@ tr.review{background:#fff6dd}.warn{color:#a40}</style></head><body>
 <p>Target: <b>${esc(r.target.input)}</b> ${esc(r.target.id)}<br>Status: <b>${r.status}</b> · Generated ${r.createdAt} by $TOOL_NAME</p>
 <h2>Warnings</h2><ul class=warn>${r.warnings.joinToString("") { "<li>${esc(it.code)}: ${esc(it.message)}</li>" }.ifEmpty { "<li>none</li>" }}</ul>
 <h2>Tools</h2><ul>${r.tools.joinToString("") { "<li>${esc(it.tool)} (${esc(it.image)}): ${if (it.ok) "ok" else "FAILED"}, ${it.millis} ms</li>" }}</ul>
-<h2>Summary</h2><p>${cs.size} components: ${cs.count { it.direct }} direct, ${cs.count { !it.direct }} transitive, ${cs.count { it.needsReview }} need review</p>
+<h2>Summary</h2><p>${cs.size} components: ${cs.count { it.direct }} direct, ${cs.count { !it.direct }} transitive, ${cs.count { it.needsReview }} need review, ${cs.count { it.foundBy.size == 1 }} found by one tool only</p>
 <h3>By ecosystem</h3><ul>${counts { it.ecosystem }}</ul>
 <h3>By license</h3><ul>${counts { it.licenses?.value ?: "(unresolved)" }}</ul>
 <h2>Components</h2><input id=q placeholder="filter" size=40>

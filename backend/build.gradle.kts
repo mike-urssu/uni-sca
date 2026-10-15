@@ -46,7 +46,7 @@ tasks.bootJar {
 }
 
 tasks.test {
-	useJUnitPlatform { excludeTags("integration") }
+	useJUnitPlatform { excludeTags("integration", "analysis") }
 }
 
 tasks.register<Test>("integrationTest") {
@@ -55,5 +55,15 @@ tasks.register<Test>("integrationTest") {
 	testClassesDirs = sourceSets.test.get().output.classesDirs
 	classpath = sourceSets.test.get().runtimeClasspath
 	useJUnitPlatform { includeTags("integration") }
+	systemProperties(System.getProperties().filterKeys { it.toString().startsWith("sca.") }.mapKeys { it.key.toString() })
+}
+
+tasks.register<Test>("analysis") {
+	description = "Field coverage report over benchmark scan outputs (-Dsca.benchDir=...)."
+	group = "verification"
+	testClassesDirs = sourceSets.test.get().output.classesDirs
+	classpath = sourceSets.test.get().runtimeClasspath
+	useJUnitPlatform { includeTags("analysis") }
+	outputs.upToDateWhen { false }
 	systemProperties(System.getProperties().filterKeys { it.toString().startsWith("sca.") }.mapKeys { it.key.toString() })
 }

@@ -74,6 +74,27 @@ class MergerTest {
         assertTrue("npm/b@1" to "npm/lodash@4.17.15" in m.edges)
     }
 
+    @Test fun `being found by one tool alone is not a review item`() {
+        // measured: without a lockfile only cdxgen resolves transitive deps, so "single tool" flagged ~all of express/gradle/.NET
+        val c = Merger.merge(Normalizer.normalize(listOf(raw("cdxgen", "pkg:npm/x@1", listOf("MIT")))), MergeRules.load()).components.single()
+        assertFalse(c.needsReview)
+        assertEquals(setOf("cdxgen"), c.foundBy)
+    }
+
+    @Test fun `empty roots from one tool fall back to another tool's roots`() {
+        // measured: cdxgen reports dependsOn [] for requirements.txt / .NET while trivy knows the direct deps
+        val cdx = rawResult("cdxgen", listOf("pkg:pypi/a@1", "pkg:pypi/b@1"), emptySet(), roots = emptySet())
+        val trivy = rawResult("trivy", listOf("pkg:pypi/a@1", "pkg:pypi/b@1"), emptySet(), roots = setOf("pkg:pypi/a@1"))
+        val m = Merger.merge(Normalizer.normalize(listOf(cdx, trivy)), MergeRules.load())
+        assertEquals(setOf("pypi/a@1"), m.roots)
+        assertTrue(m.components.single { it.name == "a" }.direct)
+    }
+
+    @Test fun `no roots anywhere falls back to nodes nobody depends on`() {
+        val r = rawResult("cdxgen", listOf("pkg:npm/a@1", "pkg:npm/b@1"), setOf("pkg:npm/a@1" to "pkg:npm/b@1"), roots = emptySet())
+        assertEquals(setOf("npm/a@1"), Merger.merge(Normalizer.normalize(listOf(r)), MergeRules.load()).roots)
+    }
+
     @Test fun `cyclic graph terminates`() {   // Review Focus 4
         val r = rawResult("cdxgen", purls = listOf("pkg:npm/a@1", "pkg:npm/b@1"),
             edges = setOf("pkg:npm/a@1" to "pkg:npm/b@1", "pkg:npm/b@1" to "pkg:npm/a@1"), roots = null)

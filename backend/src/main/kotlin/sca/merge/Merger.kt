@@ -56,7 +56,8 @@ object Merger {
             sourceRepo = pick("sourceRepo", ::sameUrl) { it.sourceRepo },
             locations = seen.values.flatMap { it.locations }.toSet(),
             foundBy = seen.keys, direct = direct, conflicts = conflicts,
-            needsReview = conflicts.isNotEmpty() || seen.size == 1 || !key.contains('/'),
+            // single-tool findings stay visible through foundBy; they are not review items by themselves (see docs/analysis)
+            needsReview = conflicts.isNotEmpty() || !key.contains('/'),
             licenseTexts = licenseTexts.filterKeys { licenses?.value?.contains(it) == true },
         )
     }
@@ -76,7 +77,9 @@ object Merger {
             .filter(::valid).toSet()
 
         val hasIncoming = edges.map { it.second }.toSet()
-        val toolRoots = (appTool ?: results.firstOrNull { it.roots != null })?.roots?.filter { it in keys }?.toSet()
+        // roots from the graph tool, else the first tool (graph order) that knows any; an empty list means "doesn't know"
+        val order = listOfNotNull(appTool) + rules.order("graph", false).mapNotNull { t -> results.firstOrNull { it.tool == t } } + results
+        val toolRoots = order.firstNotNullOfOrNull { r -> r.roots?.filter { it in keys }?.toSet()?.takeIf { it.isNotEmpty() } }
         val roots = (toolRoots ?: keys.filter { isOs[it] == false && it !in hasIncoming }.toSet()) +
             keys.filter { isOs[it] == true && it !in hasIncoming }
         return edges to roots

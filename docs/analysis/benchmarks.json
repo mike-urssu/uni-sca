@@ -1,0 +1,12 @@
+[
+  {"name": "npm-express", "ecosystem": "npm (no lockfile committed)", "target": "https://github.com/expressjs/express", "ref": "4.21.2", "resolved": "1faf228935aa0a13111f92c28ee795be64ce3f0f"},
+  {"name": "maven-jsoup", "ecosystem": "maven", "target": "https://github.com/jhy/jsoup", "ref": "jsoup-1.23.2", "resolved": "fbc7775c462f5b023d8db54c9a73d7ec17d53300"},
+  {"name": "gradle-rest", "ecosystem": "gradle", "target": "https://github.com/spring-guides/gs-rest-service", "ref": "main", "resolved": "3f4cef01152596c19bc4d37939409358812b1421"},
+  {"name": "pip-microblog", "ecosystem": "pip (requirements.txt only)", "target": "https://github.com/miguelgrinberg/microblog", "ref": "v0.23", "resolved": "1cacb966923c1483fc2cd1560c9b8351a162cee7"},
+  {"name": "poetry-cleo", "ecosystem": "poetry", "target": "https://github.com/python-poetry/cleo", "ref": "2.1.0", "resolved": "f695cd3de3de03dc617dcb198d26ba2a02081008"},
+  {"name": "go-cobra", "ecosystem": "go", "target": "https://github.com/spf13/cobra", "ref": "v1.10.2", "resolved": "88b30ab89da2d0d0abb153818746c5a2d30eccec"},
+  {"name": "cargo-ripgrep", "ecosystem": "cargo", "target": "https://github.com/BurntSushi/ripgrep", "ref": "14.1.1", "resolved": "4649aa9700619f94cf9c66876e9549d83420e16c"},
+  {"name": "dotnet-serilog", "ecosystem": ".NET", "target": "https://github.com/serilog/serilog", "ref": "v4.2.0", "resolved": "0e316b7cb072ee660b97976098b1bbdb20ac6da0"},
+  {"name": "c-jq", "ecosystem": "C (vendored, --deep)", "target": "https://github.com/jqlang/jq", "ref": "jq-1.7.1", "deep": true, "resolved": "71c2ab509a8628dbbad4bc7b3f98a64aa90d3297"},
+  {"name": "image-node16", "ecosystem": "image (deb/npm/pypi)", "target": "node:16-slim", "ref": null, "resolved": "sha256:3ebf2875c188d22939c6ab080cfb1a4a6248cc86bae600ea8e2326aa03acdb8f"}
+]
