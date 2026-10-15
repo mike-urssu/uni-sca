@@ -25,7 +25,6 @@ dependencies {
 	implementation("tools.jackson.dataformat:jackson-dataformat-yaml")
 	implementation("com.github.package-url:packageurl-java:1.5.0")
 	implementation("org.cyclonedx:cyclonedx-core-java:13.2.0")
-	implementation("com.networknt:json-schema-validator:3.0.8")
 	testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
