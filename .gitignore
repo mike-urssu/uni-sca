@@ -1,0 +1,9 @@
+node_modules/
+data/
+.superpowers/
+backend/build/
+backend/.gradle/
+backend/.kotlin/
+backend/src/main/resources/static/
+frontend/dist/
+.DS_Store

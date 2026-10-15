@@ -1,0 +1,14 @@
+{
+  "name": "sca-lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Intentionally vulnerable deps for comparing SCA tools",
+  "dependencies": {
+    "axios": "0.21.0",
+    "express": "4.17.1",
+    "jquery": "3.4.0",
+    "lodash": "4.17.15",
+    "minimist": "1.2.0",
+    "node-fetch": "2.6.0"
+  }
+}

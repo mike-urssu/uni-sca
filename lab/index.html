@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SCA Lab</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg:#0d1117; --pane:#161b22; --line:#30363d; --fg:#c9d1d9; --dim:#8b949e; --ok:#3fb950; --warn:#d29922; --err:#f85149; --accent:#58a6ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:13px/1.45 -apple-system, system-ui, sans-serif; }
+  header { position:sticky; top:0; z-index:1; display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px 16px; background:var(--pane); border-bottom:1px solid var(--line); }
+  header h1 { font-size:15px; margin:0 12px 0 0; }
+  button, select, input { font:inherit; color:var(--fg); background:#21262d; border:1px solid var(--line); border-radius:6px; padding:4px 10px; }
+  button { cursor:pointer; } button:hover { border-color:var(--accent); }
+  button.primary { background:#238636; border-color:#2ea043; color:#fff; }
+  main { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 460px), 1fr)); gap:10px; padding:10px 16px; }
+  .pane { display:flex; flex-direction:column; height:460px; background:var(--pane); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .pane.wide { grid-column:1 / -1; height:560px; }
+  .head { display:flex; gap:8px; align-items:center; padding:6px 10px; border-bottom:1px solid var(--line); }
+  .head b { font-size:14px; } .head .desc { color:var(--dim); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .status { font:12px ui-monospace, monospace; color:var(--dim); white-space:nowrap; }
+  .status.run { color:var(--accent); } .status.ok { color:var(--ok); } .status.warn { color:var(--warn); } .status.err { color:var(--err); }
+  textarea { width:100%; border:0; border-bottom:1px solid var(--line); background:#0d1117; color:var(--ok); font:12px ui-monospace, monospace; padding:6px 10px; resize:vertical; }
+  pre { flex:1; margin:0; padding:8px 10px; overflow:auto; font:12px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; white-space:pre; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SCA Lab</h1>
+  <label>대상 <select id="target"><option value="dir">폴더 (package.json)</option><option value="img">도커 이미지</option></select></label>
+  <input id="img" value="node:16-slim" size="16" aria-label="이미지 이름">
+  <button class="primary" id="runAll">▶ 모두 실행</button>
+  <button id="stopAll">■ 모두 중지</button>
+  <button id="prep">준비 (의존성·이미지·DB)</button>
+  <button id="summary">비교 요약</button>
+  <span style="color:var(--dim)">패널 제목 더블클릭 = 넓게 보기</span>
+</header>
+<main id="panes"></main>
+
+<script>
+const NA = (why) => `echo "이미지 스캔 미지원 — ${why}"`;
+const TOOLS = [
+  { name: 'Syft', desc: 'SBOM 생성 · syft/CycloneDX/SPDX 포맷 · 자체 취약점 DB 없음',
+    dir: 'syft dir:. -q -o table -o syft-json=out/syft-dir.json -o spdx-json=out/syft-dir.spdx.json',
+    img: 'syft $IMG -q -o table -o syft-json=out/syft-img.json' },
+  { name: 'Grype', desc: 'Syft 짝꿍 취약점 스캐너 · SBOM 입력 가능 (grype sbom:out/syft-dir.json) · EPSS/KEV',
+    dir: 'grype dir:. -q -o table -o json=out/grype-dir.json',
+    img: 'grype $IMG -q -o table -o json=out/grype-img.json' },
+  { name: 'Trivy', desc: '올인원: SBOM·취약점·시크릿·라이선스·IaC · trivy-db',
+    dir: 'trivy fs -q --format cyclonedx -o out/trivy-dir.cdx.json . && trivy fs -q --scanners vuln -f json -o out/trivy-dir.json . && trivy convert -q -f table out/trivy-dir.json',
+    img: 'trivy image -q --scanners vuln -f json -o out/trivy-img.json $IMG && trivy convert -q -f table out/trivy-img.json' },
+  { name: 'OSV-Scanner', desc: 'Google · lockfile 기반 · OSV.dev DB · 취약점 발견 시 exit 1',
+    dir: 'osv-scanner scan source -L package-lock.json --format json > out/osv-dir.json; osv-scanner scan source -L package-lock.json',
+    img: 'osv-scanner scan image --all-vulns --format json $IMG > out/osv-img.json 2>/dev/null; osv-scanner scan image --all-vulns $IMG' },
+  { name: 'cdxgen', desc: 'OWASP CycloneDX · 의존성 그래프/evidence · 다양한 언어',
+    dir: String.raw`cdxgen -t js -o out/cdxgen.json . >/dev/null && jq -c '{components: (.components|length), dependencyEdges: (.dependencies|length)}' out/cdxgen.json && jq -r '.components[] | "\(.name)@\(.version)  \(.licenses[0].license.id // "-")"' out/cdxgen.json`,
+    img: String.raw`cdxgen -t docker -o out/cdxgen-img.json $IMG >/dev/null && jq -c '{components: (.components|length)}' out/cdxgen-img.json && jq -r '.components[] | "\(.type)  \(.name)@\(.version)"' out/cdxgen-img.json | head -100` },
+  { name: 'retire.js', desc: 'JS 전용 · .js 파일 지문으로 vendored 라이브러리 탐지',
+    dir: 'retire --path . --outputformat json --outputpath out/retire.json; retire --path .',
+    img: NA('JS 파일 디렉터리만 스캔') },
+  { name: 'npm audit', desc: 'npm 내장 기준선 · GitHub Advisory DB · 취약점 발견 시 exit 1',
+    dir: 'npm audit --json > out/npm-audit.json; npm audit',
+    img: NA('npm lockfile 전용') },
+  { name: 'OWASP Dependency-Check', desc: 'NVD/CPE 매칭 · Java 강점 · 첫 실행은 NVD 다운로드로 매우 느림 (NVD_API_KEY 권장) · 모두 실행에서 제외',
+    dir: 'dependency-check --scan . --format JSON --out out/ --disableAssembly ${NVD_API_KEY:+--nvdApiKey $NVD_API_KEY}',
+    img: NA('이 데모에서는 폴더만'), manual: true },
+];
+const PREP = 'npm install --ignore-scripts --no-audit --silent && docker pull -q $IMG && grype db update -q && trivy image -q --download-db-only && echo "준비 완료"';
+
+const $ = (s) => document.querySelector(s);
+const ANSI = /\x1b\[[0-9;]*m/g;
+
+function makePane(name, desc, wide) {
+  const el = document.createElement('section');
+  el.className = 'pane' + (wide ? ' wide' : '');
+  el.innerHTML = `<div class="head"><b></b><span class="desc"></span><span class="status">대기</span><button class="run">▶</button><button class="stop">■</button></div><textarea rows="2" spellcheck="false" aria-label="명령어"></textarea><pre></pre>`;
+  el.querySelector('b').textContent = name;
+  el.querySelector('.desc').textContent = el.querySelector('.desc').title = desc;
+  $('#panes').append(el);
+  const pane = { el, cmd: el.querySelector('textarea'), out: el.querySelector('pre'), status: el.querySelector('.status'), ctrl: null };
+  pane.run = () => run(pane);
+  pane.stop = () => pane.ctrl?.abort();
+  el.querySelector('.run').onclick = pane.run;
+  el.querySelector('.stop').onclick = pane.stop;
+  el.querySelector('.head').ondblclick = () => el.classList.toggle('wide'); // header double-click: full width
+  return pane;
+}
+
+async function run(p) {
+  p.stop();
+  const ctrl = p.ctrl = new AbortController();
+  const t0 = performance.now();
+  const setStatus = (cls, text) => { p.status.className = 'status ' + cls; p.status.textContent = text; };
+  const tick = setInterval(() => setStatus('run', `실행 중 ${((performance.now() - t0) / 1000).toFixed(1)}s`), 200);
+  p.out.textContent = `$ ${p.cmd.value}\n\n`;
+  let text = '';
+  try {
+    const res = await fetch('/run', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ cmd: p.cmd.value, img: $('#img').value }), signal: ctrl.signal });
+    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    for (let r; !(r = await reader.read()).done;) {
+      text += r.value;
+      const stick = p.out.scrollTop + p.out.clientHeight >= p.out.scrollHeight - 20;
+      p.out.textContent = `$ ${p.cmd.value}\n\n` + text.replace(ANSI, '').replace(/\n?\u0000EXIT:.*$/, '');
+      if (stick) p.out.scrollTop = p.out.scrollHeight;
+    }
+    const code = Number(text.match(/\u0000EXIT:(\S+)$/)?.[1]);
+    setStatus(code === 0 ? 'ok' : 'warn', `${code === 0 ? '✓' : 'exit ' + code} · ${((performance.now() - t0) / 1000).toFixed(1)}s`);
+  } catch (e) {
+    setStatus('err', ctrl.signal.aborted ? '중지됨' : '오류: ' + e.message);
+  } finally {
+    clearInterval(tick);
+  }
+}
+
+const panes = TOOLS.map((t) => Object.assign(makePane(t.name, t.desc), { tool: t }));
+const summary = makePane('비교 요약', 'out/*.json 을 모아 패키지 수 · 취약점 ID · 도구별 고유 발견 · 기능 매트릭스 출력', true);
+summary.cmd.value = './summary.sh';
+
+const setTarget = () => panes.forEach((p) => (p.cmd.value = p.tool[$('#target').value]));
+$('#target').onchange = setTarget;
+setTarget();
+
+$('#runAll').onclick = async () => {
+  await Promise.all(panes.filter((p) => !p.tool.manual).map((p) => p.run()));
+  summary.run();
+};
+$('#stopAll').onclick = () => [...panes, summary].forEach((p) => p.stop());
+$('#summary').onclick = () => { summary.cmd.value = './summary.sh'; summary.run(); };
+$('#prep').onclick = () => { summary.cmd.value = PREP; summary.run(); };
+</script>
+</body>
+</html>
