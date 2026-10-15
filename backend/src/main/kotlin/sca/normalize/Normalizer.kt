@@ -12,7 +12,9 @@ object Normalizer {
     fun key(purl: String?, name: String, version: String?): String {
         val p = parse(purl) ?: return "$name@$version"
         val n = if (p.type == "pypi") p.name.lowercase().replace(Regex("[-_.]+"), "-") else p.name
-        val v = p.version ?: version
+        // trivy puts a deb/rpm epoch in the `epoch` qualifier, syft/cdxgen keep it in the version ("1:2.33.1")
+        val epoch = p.qualifiers?.get("epoch")?.takeIf { p.type in OS_TYPES }
+        val v = (p.version ?: version)?.let { if (epoch != null && ':' !in it) "$epoch:$it" else it }
         return listOfNotNull(p.type, p.namespace, n).joinToString("/") + (v?.let { "@$it" } ?: "")
     }
 
@@ -23,9 +25,11 @@ object Normalizer {
         val sourceToBinary = binaryAware.flatMap { it.components }.mapNotNull { c ->
             val p = parse(c.purl) ?: return@mapNotNull null
             if (p.type !in OS_TYPES || c.upstream == null || c.upstream == p.name) return@mapNotNull null
-            val src = listOfNotNull(p.type, p.namespace, c.upstream).joinToString("/") + "@" + (p.version ?: c.version)
-            src to key(c.purl, c.name, c.version)
-        }.groupBy({ it.first }, { it.second }).mapValues { (_, bins) -> bins.min() }
+            val bin = key(c.purl, c.name, c.version)
+            // source packages carry no epoch: libuuid1@1:2.33 comes from util-linux@2.33
+            val v = bin.substringAfterLast('@')
+            listOf(v, v.substringAfter(':')).distinct().map { listOfNotNull(p.type, p.namespace, c.upstream).joinToString("/") + "@" + it to bin }
+        }.flatten().groupBy({ it.first }, { it.second }).mapValues { (_, bins) -> bins.min() }
             .filterKeys { it !in knownBinaries }   // a real binary with that name exists: don't fold it
 
         return results.map { r ->

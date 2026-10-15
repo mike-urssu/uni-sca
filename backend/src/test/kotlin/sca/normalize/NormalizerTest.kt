@@ -16,6 +16,13 @@ class NormalizerTest {
         assertEquals("deb/debian/attr@1:2.4.48-4", Normalizer.key("pkg:deb/debian/attr@1%3A2.4.48-4", "attr", "1:2.4.48-4"))
     }
 
+    @Test fun `deb and rpm epoch qualifier folds into the version`() {   // trivy: epoch=1 qualifier; syft/cdxgen: "1:" in the version
+        assertEquals("deb/debian/bsdutils@1:2.33.1-0.1", Normalizer.key("pkg:deb/debian/bsdutils@2.33.1-0.1?arch=arm64&epoch=1", "bsdutils", "1:2.33.1-0.1"))
+        assertEquals("deb/debian/bsdutils@1:2.33.1-0.1", Normalizer.key("pkg:deb/debian/bsdutils@1%3A2.33.1-0.1?arch=arm64&epoch=1", "bsdutils", "1:2.33.1-0.1"))
+        assertEquals("rpm/redhat/bash@1:5.1-2", Normalizer.key("pkg:rpm/redhat/bash@5.1-2?epoch=1", "bash", "5.1-2"))
+        assertEquals("npm/x@1.0", Normalizer.key("pkg:npm/x@1.0?epoch=1", "x", "1.0"))
+    }
+
     @Test fun `missing or broken purl falls back to name@version`() {
         assertEquals("foo@1.0", Normalizer.key(null, "foo", "1.0"))
         assertEquals("foo@1.0", Normalizer.key("not a purl", "foo", "1.0"))
