@@ -43,3 +43,16 @@ tasks.withType<Test> {
 tasks.bootJar {
 	archiveFileName = "sca.jar"
 }
+
+tasks.test {
+	useJUnitPlatform { excludeTags("integration") }
+}
+
+tasks.register<Test>("integrationTest") {
+	description = "Tests that need docker and network."
+	group = "verification"
+	testClassesDirs = sourceSets.test.get().output.classesDirs
+	classpath = sourceSets.test.get().runtimeClasspath
+	useJUnitPlatform { includeTags("integration") }
+	systemProperties(System.getProperties().filterKeys { it.toString().startsWith("sca.") }.mapKeys { it.key.toString() })
+}

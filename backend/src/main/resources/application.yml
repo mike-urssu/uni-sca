@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: sca
+  servlet:
+    multipart:
+      max-file-size: 10GB
+      max-request-size: 10GB
+
+server:
+  address: 127.0.0.1
+  port: 8080
+
+sca:
+  data-dir: data
+  tool-timeout: 15m
+  workers: 2
+  limits:
+    cpus: "2"
+    memory: 4g
+  # Pinned by tag and digest. Versions match the host CLIs that produced lab/out (syft 1.54.1, trivy 0.76.0, cdxgen 11.11.0).
+  images:
+    syft: anchore/syft:v1.54.1@sha256:3eb5379ba7b409c3f4069b686110527af0c47df993fa5c10d13e7cf34f49b1aa
+    trivy: aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222
+    cdxgen: ghcr.io/cyclonedx/cdxgen:v11.11.0@sha256:bbe0ecfdd57dbe83376d47e7276b7a7848c3f3eafd37ed58af987df0d5b637f6
+    # Built locally from docker/scancode.Dockerfile (no published image), so pinned by tag only.
+    scancode: sca-scancode:32.5.0
