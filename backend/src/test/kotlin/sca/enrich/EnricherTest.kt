@@ -93,6 +93,26 @@ class EnricherTest {
         assertEquals(1, api.count("/v3/systems/MAVEN/packages/org.apache.commons%3Acommons-lang3/versions/3.12.0"))
     }
 
+    @Test fun `corrupt cache file is a miss, not a crash`() {
+        api.respond("/v3/systems/NPM/packages/lodash/versions/4.17.15", 200, Files.readString(fixture("depsdev-lodash.json")))
+        enricher().enrich(comp("pkg:npm/lodash@4.17.15"))
+        Files.list(cacheDir).use { s -> s.forEach { Files.writeString(it, "{\"licen") } }   // truncated write
+        assertEquals(Sourced("MIT", "deps.dev"), enricher().enrich(comp("pkg:npm/lodash@4.17.15")).licenses)
+    }
+
+    @Test fun `non-json 200 is unresolved and not cached`() {   // captive portal / proxy page
+        api.respond("/v3/systems/NPM/packages/x/versions/1", 200, "<html>login</html>")
+        val r = enricher().enrich(comp("pkg:npm/x@1"))
+        assertTrue("licenses" in r.unresolved)
+        enricher().enrich(comp("pkg:npm/x@1"))
+        assertEquals(2, api.count("/v3/systems/NPM/packages/x/versions/1"))   // asked again: the HTML page was not cached
+    }
+
+    @Test fun `deps dev license lists keep OR groups intact`() {
+        api.respond("/v3/systems/NPM/packages/x/versions/1", 200, """{"licenses":["MIT OR Apache-2.0","Zlib"]}""")
+        assertEquals("(MIT OR Apache-2.0) AND Zlib", enricher().enrich(comp("pkg:npm/x@1")).licenses?.value)
+    }
+
     @Test fun `unresolved lists the fields nobody could fill`() {
         val r = enricher().enrich(comp("pkg:rpm/redhat/bash@5.1"))
         assertEquals(setOf("licenses", "downloadUrl", "supplier", "sourceRepo", "hashes"), r.unresolved)

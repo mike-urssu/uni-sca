@@ -56,6 +56,27 @@ class ScanControllerTest {
         mvc.perform(json("""{"target":"node:16-slim"}""")).andExpect(status().isCreated).andExpect(jsonPath("$.id").value("20261015-000000-abcdef"))
     }
 
+    @Test fun `report is served sandboxed`(@org.junit.jupiter.api.io.TempDir dir: java.nio.file.Path) {
+        val id = "20261015-000000-abcdef"
+        java.nio.file.Files.writeString(dir.resolve("report.html"), "<html></html>")
+        whenever(store.get(id)).thenReturn(sca.job.JobStatus(id, sca.model.Status.DONE, null, ScanInput("x:1"), java.time.Instant.now()))
+        whenever(store.dir(id)).thenReturn(dir)
+        mvc.perform(get("/api/scans/$id/files/report.html"))
+            .andExpect(status().isOk)
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Security-Policy", "sandbox"))
+    }
+
+    @Test fun `raw zip contains regular files only`(@org.junit.jupiter.api.io.TempDir dir: java.nio.file.Path) {
+        val raw = java.nio.file.Files.createDirectories(dir.resolve("raw/trivy"))
+        java.nio.file.Files.writeString(dir.resolve("raw/cdxgen.log"), "log")
+        java.nio.file.Files.writeString(dir.resolve("secret"), "host file")
+        java.nio.file.Files.createSymbolicLink(raw.resolve("trivy.json"), dir.resolve("secret"))
+        val out = java.io.ByteArrayOutputStream()
+        zipRegularFiles(dir.resolve("raw"), out)
+        val names = java.util.zip.ZipInputStream(out.toByteArray().inputStream()).use { z -> generateSequence { z.nextEntry?.name }.toList() }
+        kotlin.test.assertEquals(listOf("cdxgen.log"), names)
+    }
+
     @Test fun `unknown job is 404`() {
         mvc.perform(get("/api/scans/20261015-000000-abcdef")).andExpect(status().isNotFound)
     }

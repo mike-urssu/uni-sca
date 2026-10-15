@@ -22,6 +22,7 @@ import sca.normalize.Readers
 import sca.scan.ContainerSpec
 import sca.scan.Scanners
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.time.Instant
 import java.util.concurrent.Executors
@@ -40,7 +41,8 @@ class Pipeline(val props: ScaProperties, val acquirer: Acquirer, val step: ScanS
     @OptIn(kotlin.io.path.ExperimentalPathApi::class)
     fun run(jobDir: Path, input: ScanInput, progress: (String) -> Unit): ScanResult {
         val raw = jobDir.resolve("raw").also { Files.createDirectories(it) }
-        val work = jobDir.resolve("work")
+        // private, uniquely named: in CLI mode jobDir is the user's -o directory, which may hold a "work" dir of their own
+        val work = Files.createTempDirectory(jobDir.also { Files.createDirectories(it) }, ".work-")
         try {
             progress("acquire")
             val target = input.uploadedTar?.let { Target.ImageTar(it) } ?: parseTarget(input.target, input.ref)
@@ -48,17 +50,18 @@ class Pipeline(val props: ScaProperties, val acquirer: Acquirer, val step: ScanS
             val info = TargetInfo(acquired.kind, input.target, input.ref, acquired.id)
 
             progress("scan")
-            val specs = Scanners.specs(acquired, input.deep, raw, props.dataDir.resolve("trivy-db"), props.images)
+            val specs = Scanners.specs(acquired, input.deep, raw, work, props.dataDir.resolve("trivy-db"), props.images)
+            specs.forEach { Files.deleteIfExists(output(raw, it.tool)) }   // never reuse a previous run's result
             val runs = Executors.newVirtualThreadPerTaskExecutor().use { ex ->
                 specs.map { s -> ex.submit<ToolRun> {
                     val t0 = System.currentTimeMillis()
-                    val ok = runCatching { step.run(s, raw.resolve("${s.tool}.log")) }.getOrDefault(false) && Files.exists(raw.resolve("${s.tool}.json"))
+                    val ok = runCatching { step.run(s, raw.resolve("${s.tool}.log")) }.getOrDefault(false) && Files.isRegularFile(output(raw, s.tool), LinkOption.NOFOLLOW_LINKS)
                     ToolRun(s.tool, s.image, ok, System.currentTimeMillis() - t0, "raw/${s.tool}.log")
                 } }.map { it.get() }
             }
 
             progress("normalize")
-            val parsed = runs.associate { r -> r.tool to (if (r.ok) runCatching { Readers.read(r.tool, raw.resolve("${r.tool}.json")) }.getOrNull() else null) }
+            val parsed = runs.associate { r -> r.tool to (if (r.ok) runCatching { Readers.read(r.tool, output(raw, r.tool)) }.getOrNull() else null) }
             val tools = runs.map { it.copy(ok = parsed[it.tool] != null) }
             val failed = tools.filter { !it.ok }.map { it.tool }
             if (failed.size == tools.size) {
@@ -86,9 +89,12 @@ class Pipeline(val props: ScaProperties, val acquirer: Acquirer, val step: ScanS
             ReportWriter.write(result, jobDir.resolve("report.html"))
             return result
         } finally {
-            if (Files.exists(work)) work.deleteRecursively()   // checkout, cdxgen copy, pulled image tar; raw/ stays as evidence
+            work.deleteRecursively()   // checkout, cdxgen copy, pulled image tar, tool tmp dirs; raw/ stays as evidence
         }
     }
+
+    /** Where a tool's container writes its result: raw/<tool>/<tool>.json (only regular files are read). */
+    private fun output(raw: Path, tool: String): Path = raw.resolve(tool).resolve("$tool.json")
 
     private fun resolutionFailures(log: Path): List<Warning> = if (!Files.exists(log)) emptyList() else
         Files.readAllLines(log).map { it.trim() }.filter { RESOLUTION_FAILURE.containsMatchIn(it) }.distinct().take(20)

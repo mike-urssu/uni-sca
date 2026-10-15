@@ -1,6 +1,7 @@
 package sca.enrich
 
 import com.github.packageurl.PackageURL
+import sca.merge.allOf
 import sca.model.Component
 import sca.model.Json
 import sca.model.Sourced
@@ -14,6 +15,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.time.Duration
 import java.util.concurrent.Executors
@@ -31,7 +33,8 @@ class Enricher(
     fun enrichAll(cs: List<Component>): List<Component> {
         val gate = Semaphore(8)
         return Executors.newVirtualThreadPerTaskExecutor().use { ex ->
-            cs.map { c -> ex.submit<Component> { gate.acquire(); try { enrich(c) } finally { gate.release() } } }.map { it.get() }
+            // best effort: an enrichment problem leaves fields unresolved, it never fails the scan
+            cs.map { c -> ex.submit<Component> { gate.acquire(); try { runCatching { enrich(c) }.getOrElse { c.copy(unresolved = missing(c)) } } finally { gate.release() } } }.map { it.get() }
         }
     }
 
@@ -45,14 +48,15 @@ class Enricher(
             if (p.type !in OS_TYPES && (r.licenses == null || r.sourceRepo == null)) r = depsDev(r, p)
             if (r.licenses == null) r = clearlyDefined(r, p)
         }
-        val missing = buildSet {
-            if (r.licenses == null) add("licenses")
-            if (r.downloadUrl == null) add("downloadUrl")
-            if (r.supplier == null) add("supplier")
-            if (r.sourceRepo == null) add("sourceRepo")
-            if (r.hashes.isEmpty()) add("hashes")
-        }
-        return r.copy(unresolved = missing)
+        return r.copy(unresolved = missing(r))
+    }
+
+    private fun missing(r: Component) = buildSet {
+        if (r.licenses == null) add("licenses")
+        if (r.downloadUrl == null) add("downloadUrl")
+        if (r.supplier == null) add("supplier")
+        if (r.sourceRepo == null) add("sourceRepo")
+        if (r.hashes.isEmpty()) add("hashes")
     }
 
     private fun depsDev(c: Component, p: PackageURL): Component {
@@ -67,7 +71,7 @@ class Enricher(
         val licenses = doc["licenses"]?.mapNotNull { it.asString() }?.filter { it != "non-standard" }?.takeIf { it.isNotEmpty() }
         val repo = doc["links"]?.firstOrNull { it["label"]?.asString() == "SOURCE_REPO" }?.get("url")?.asString()
         return c.copy(
-            licenses = c.licenses ?: licenses?.let { Sourced(it.joinToString(" AND "), "deps.dev") },
+            licenses = c.licenses ?: licenses?.let { Sourced(allOf(it), "deps.dev") },
             sourceRepo = c.sourceRepo ?: repo?.let { Sourced(it, "deps.dev") },
         )
     }
@@ -84,23 +88,41 @@ class Enricher(
         return c.copy(licenses = declared?.let { Sourced(it, "clearlydefined") })
     }
 
-    /** GET with a file cache. 404 is cached as "nothing"; 429/5xx/IO errors retry 3 times, then give up uncached. */
+    /**
+     * GET with a file cache. 404 is cached as "nothing"; 429/5xx/IO errors retry 3 times, then give up uncached.
+     * Only parseable JSON is cached (written atomically); an unreadable cache entry is treated as a miss.
+     */
     private fun get(url: String): JsonNode? {
         val file = cacheDir.resolve(sha256(url) + ".json")
-        if (Files.exists(file)) return Files.readString(file).takeIf { it.isNotEmpty() }?.let { Json.mapper.readTree(it) }
+        if (Files.exists(file)) {
+            val text = Files.readString(file)
+            if (text.isEmpty()) return null
+            runCatching { Json.mapper.readTree(text) }.onSuccess { return it }
+            Files.deleteIfExists(file)
+        }
         repeat(4) { attempt ->
             if (attempt > 0) Thread.sleep(backoff.multipliedBy(1L shl (attempt - 1)))
             val res = try {
                 http.send(HttpRequest.newBuilder(URI(url)).timeout(Duration.ofSeconds(10)).GET().build(), HttpResponse.BodyHandlers.ofString())
             } catch (_: IOException) { return@repeat }
             when (res.statusCode()) {
-                200 -> { Files.createDirectories(cacheDir); Files.writeString(file, res.body()); return Json.mapper.readTree(res.body()) }
-                404 -> { Files.createDirectories(cacheDir); Files.writeString(file, ""); return null }
+                200 -> {
+                    val node = runCatching { Json.mapper.readTree(res.body()) }.getOrNull()?.takeIf { it.isObject } ?: return null
+                    cache(file, res.body()); return node
+                }
+                404 -> { cache(file, ""); return null }
                 429, in 500..599 -> {}
                 else -> return null
             }
         }
         return null
+    }
+
+    private fun cache(file: Path, body: String) {
+        Files.createDirectories(cacheDir)
+        val tmp = Files.createTempFile(cacheDir, "tmp", ".part")
+        Files.writeString(tmp, body)
+        Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
     }
 
     private fun enc(s: String) = URLEncoder.encode(s, Charsets.UTF_8).replace("+", "%20")

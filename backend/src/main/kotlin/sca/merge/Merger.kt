@@ -10,6 +10,12 @@ import sca.model.Sourced
 import sca.normalize.OS_TYPES
 import java.security.MessageDigest
 
+/** SPDX AND of several expressions; OR-expressions get parentheses so AND's higher precedence can't regroup them. */
+fun allOf(exprs: List<String>): String {
+    val parts = exprs.distinct()
+    return if (parts.size == 1) parts[0] else parts.joinToString(" AND ") { if (" OR " in it && !it.startsWith("(")) "($it)" else it }
+}
+
 data class Merged(val components: List<Component>, val edges: Set<Pair<String, String>>, val roots: Set<String>)
 
 object Merger {
@@ -40,13 +46,15 @@ object Merger {
         }
 
         val identity = (rules.order("graph", os) + seen.keys).firstNotNullOf { seen[it] }
+        // the key alone can't tell: a purl-less "github.com/a/b@v1" key contains '/' too
+        val validPurl = seen.values.any { r -> r.purl?.let { runCatching { PackageURL(it) }.isSuccess } == true }
         val hashTool = rules.order("hashes", os).firstOrNull { seen[it]?.hashes?.isNotEmpty() == true }
         val licenses = pick("licenses") { c ->
-            c.licenses.mapNotNull { spdx(it, licenseTexts) }.distinct().takeIf { it.isNotEmpty() }?.joinToString(" AND ")
+            c.licenses.mapNotNull { spdx(it, licenseTexts) }.distinct().takeIf { it.isNotEmpty() }?.let(::allOf)
         }
         return Component(
             key = key, purl = identity.purl ?: seen.values.firstNotNullOfOrNull { it.purl },
-            name = identity.name, version = identity.version, ecosystem = ecosystem(key),
+            name = identity.name, version = identity.version, ecosystem = if (validPurl) ecosystem(key) else "unknown",
             qualifiers = seen.values.mapNotNull { it.purl }.flatMap { qualifiers(it).entries }.associate { it.toPair() },
             licenses = licenses,
             hashes = hashTool?.let { t -> seen.getValue(t).hashes.map { Sourced(it, t) } } ?: emptyList(),
@@ -57,7 +65,7 @@ object Merger {
             locations = seen.values.flatMap { it.locations }.toSet(),
             foundBy = seen.keys, direct = direct, conflicts = conflicts,
             // single-tool findings stay visible through foundBy; they are not review items by themselves (see docs/analysis)
-            needsReview = conflicts.isNotEmpty() || !key.contains('/'),
+            needsReview = conflicts.isNotEmpty() || !validPurl,
             licenseTexts = licenseTexts.filterKeys { licenses?.value?.contains(it) == true },
         )
     }

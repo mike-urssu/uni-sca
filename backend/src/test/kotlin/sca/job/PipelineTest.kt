@@ -51,7 +51,7 @@ class PipelineTest {
 
     private fun pipeline(step: ScanStep) = Pipeline(
         ScaProperties(dataDir = tmp, images = mapOf("cdxgen" to "c", "syft" to "s", "trivy" to "t", "scancode" to "sc")),
-        FakeAcquirer(tmp.resolve("job/work/src")), step, Enricher(api.base, api.base, tmp.resolve("cache"), java.time.Duration.ZERO), MergeRules.load())
+        FakeAcquirer(tmp.resolve("src")), step, Enricher(api.base, api.base, tmp.resolve("cache"), java.time.Duration.ZERO), MergeRules.load())
 
     @Test fun `all tools succeed gives DONE and all files`() {
         val r = pipeline(fakeStep(ok = setOf("cdxgen", "syft", "trivy"))).run(jobDir, ScanInput("https://github.com/a/b"), {})
@@ -86,11 +86,33 @@ class PipelineTest {
         assertEquals(listOf("Unable to resolve dependencies for /src/pom.xml"), r.warnings.filter { it.code == "TRANSITIVE_INCOMPLETE" }.map { it.message })
     }
 
+    @Test fun `a work dir the user already has in the output dir is left alone`() {   // CLI: -o .
+        Files.createDirectories(jobDir.resolve("work")); Files.writeString(jobDir.resolve("work/keep.txt"), "mine")
+        pipeline(fakeStep(setOf("cdxgen", "syft", "trivy"))).run(jobDir, ScanInput("https://github.com/a/b"), {})
+        assertEquals("mine", Files.readString(jobDir.resolve("work/keep.txt")))
+    }
+
+    @Test fun `stale output from an earlier run is not reused`() {
+        Files.createDirectories(jobDir.resolve("raw/trivy")); Files.copy(fixture("trivy-dir.cdx.json"), jobDir.resolve("raw/trivy/trivy.json"))
+        val r = pipeline(fakeStep(ok = setOf("cdxgen", "syft"))).run(jobDir, ScanInput("https://github.com/a/b"), {})
+        assertFalse(r.tools.single { it.tool == "trivy" }.ok)
+    }
+
+    @Test fun `symlinked scanner output is not followed`() {
+        val step = ScanStep { spec, log ->
+            Files.writeString(log, "")
+            if (spec.tool == "trivy") Files.createSymbolicLink(outFile(spec), fixture("trivy-dir.cdx.json")) else Files.copy(fixture(FIXTURES.getValue(spec.tool)), outFile(spec))
+            true
+        }
+        val r = pipeline(step).run(jobDir, ScanInput("https://github.com/a/b"), {})
+        assertFalse(r.tools.single { it.tool == "trivy" }.ok)
+    }
+
     @Test fun `progress reports stages in order and the checkout is removed`() {
         val stages = mutableListOf<String>()
         pipeline(fakeStep(setOf("cdxgen", "syft", "trivy"))).run(jobDir, ScanInput("https://github.com/a/b"), { stages += it })
         assertEquals(listOf("acquire", "scan", "normalize", "merge", "enrich", "emit"), stages)
-        assertFalse(Files.exists(jobDir.resolve("work")))
-        assertTrue(Files.exists(jobDir.resolve("raw/cdxgen.json")))
+        assertTrue(Files.list(jobDir).use { s -> s.noneMatch { it.fileName.toString().startsWith(".work") } })
+        assertTrue(Files.exists(jobDir.resolve("raw/cdxgen/cdxgen.json")))
     }
 }

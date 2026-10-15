@@ -74,6 +74,12 @@ class EmitTest {
         assertTrue(Files.readString(tmp.resolve("s.html")).contains("${result.components.count { it.foundBy.size == 1 }} found by one tool only"))
     }
 
+    @Test fun `report never links non-http urls`() {   // downloadUrl comes from lockfiles the scanned repo controls
+        val evil = result.components[0].copy(downloadUrl = sca.model.Sourced("javascript:fetch('/api/scans')", "syft"))
+        ReportWriter.write(result.copy(components = listOf(evil)), tmp.resolve("x.html"))
+        assertFalse(Files.readString(tmp.resolve("x.html")).contains("href=\"javascript:"))
+    }
+
     @Test fun `report escapes html`() {
         ReportWriter.write(result.copy(components = listOf(result.components[0].copy(name = "<script>x"))), tmp.resolve("r.html"))
         assertFalse(Files.readString(tmp.resolve("r.html")).contains("<script>x"))

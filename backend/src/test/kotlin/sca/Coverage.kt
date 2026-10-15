@@ -58,7 +58,7 @@ class Coverage {
         runs.forEach { d -> Files.exists(d.resolve("result.json")).takeIf { it }?.let { out.appendLine(mergedLine(d.name, Json.mapper.readValue(d.resolve("result.json").toFile()))) } }
         out.appendLine("\n## Per tool, before merging\n")
         runs.forEach { d ->
-            val raws = listOf("cdxgen", "syft", "trivy", "scancode").associateWith { d.resolve("raw/$it.json") }.filterValues { Files.exists(it) }
+            val raws = listOf("cdxgen", "syft", "trivy", "scancode").associateWith { d.resolve("raw/$it/$it.json").takeIf(Files::exists) ?: d.resolve("raw/$it.json") }.filterValues { Files.exists(it) }
             out.appendLine("### ${d.name}\n").appendLine(toolTable(raws))
         }
         System.getProperty("sca.labOut")?.let { lab ->

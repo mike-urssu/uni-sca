@@ -95,6 +95,18 @@ class MergerTest {
         assertEquals(setOf("npm/a@1"), Merger.merge(Normalizer.normalize(listOf(r)), MergeRules.load()).roots)
     }
 
+    @Test fun `compound license operands are parenthesized when combined`() {
+        val c = Merger.merge(Normalizer.normalize(listOf(raw("cdxgen", "pkg:npm/x@1", listOf("MIT OR Apache-2.0", "BSD-3-Clause")))), MergeRules.load()).components.single()
+        assertEquals("(MIT OR Apache-2.0) AND BSD-3-Clause", c.licenses?.value)
+    }
+
+    @Test fun `purl-less name containing a slash still needs review`() {   // Review Focus 3: go modules, npm scopes
+        val r = RawResult("syft", listOf(RawComponent("syft", "r1", null, "github.com/a/b", "v1.0.0")), emptySet(), null)
+        val c = Merger.merge(Normalizer.normalize(listOf(r)), MergeRules.load()).components.single()
+        assertTrue(c.needsReview)
+        assertEquals("unknown", c.ecosystem)
+    }
+
     @Test fun `cyclic graph terminates`() {   // Review Focus 4
         val r = rawResult("cdxgen", purls = listOf("pkg:npm/a@1", "pkg:npm/b@1"),
             edges = setOf("pkg:npm/a@1" to "pkg:npm/b@1", "pkg:npm/b@1" to "pkg:npm/a@1"), roots = null)

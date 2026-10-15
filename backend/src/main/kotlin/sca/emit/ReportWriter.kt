@@ -13,7 +13,7 @@ object ReportWriter {
         val rows = cs.sortedBy { it.key }.joinToString("\n") { c ->
             "<tr${if (c.needsReview) " class=review" else ""}><td>${esc(c.name)}</td><td>${esc(c.version)}</td><td>${esc(c.ecosystem)}</td>" +
                 "<td>${esc(c.licenses?.value)}</td><td>${if (c.direct) "direct" else "transitive"}</td>" +
-                "<td>${c.downloadUrl?.value?.let { "<a href=\"${esc(it)}\">${esc(it)}</a>" } ?: ""}</td>" +
+                "<td>${c.downloadUrl?.value?.let { if (HTTP.containsMatchIn(it)) "<a href=\"${esc(it)}\">${esc(it)}</a>" else esc(it) } ?: ""}</td>" +
                 "<td>${esc(c.foundBy.sorted().joinToString(", "))}</td><td>${if (c.needsReview) "review" else ""}</td></tr>"
         }
         val html = """<!doctype html><html><head><meta charset="utf-8"><title>SBOM report: ${esc(r.target.input)}</title>
@@ -36,6 +36,9 @@ $rows
 """
         Files.writeString(out, html)
     }
+
+    // only http(s) becomes a link: download URLs come from lockfiles the scanned repo controls (no javascript: etc.)
+    private val HTTP = Regex("^https?://", RegexOption.IGNORE_CASE)
 
     private fun esc(s: String?) = (s ?: "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
 }

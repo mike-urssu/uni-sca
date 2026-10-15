@@ -23,9 +23,21 @@ import sca.job.JobRunner
 import sca.job.JobStatus
 import sca.job.JobStore
 import sca.job.ScanInput
+import java.io.OutputStream
 import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+
+/** Zips regular files under dir (relative names). Symlinks, which scanner containers could plant, are skipped, never followed. */
+fun zipRegularFiles(dir: Path, out: OutputStream) = ZipOutputStream(out).use { zip ->
+    Files.walk(dir).use { s ->
+        s.filter { Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) }.sorted().forEach { f ->
+            zip.putNextEntry(ZipEntry(dir.relativize(f).toString())); Files.copy(f, zip); zip.closeEntry()
+        }
+    }
+}
 
 data class ScanRequest(val target: String, val ref: String? = null, val deep: Boolean = false)
 
@@ -70,18 +82,16 @@ class ScanController(private val runner: JobRunner, private val store: JobStore)
         if (name == "raw.zip") {
             val raw = dir.resolve("raw")
             if (!Files.isDirectory(raw)) return ResponseEntity.notFound().build<Unit>()
-            val body = StreamingResponseBody { out ->
-                ZipOutputStream(out).use { zip ->
-                    Files.list(raw).use { s -> s.sorted().forEach { f -> zip.putNextEntry(ZipEntry(f.fileName.toString())); Files.copy(f, zip); zip.closeEntry() } }
-                }
-            }
+            val body = StreamingResponseBody { out -> zipRegularFiles(raw, out) }
             return ResponseEntity.ok().contentType(MediaType.parseMediaType("application/zip"))
                 .header("Content-Disposition", "attachment; filename=\"$id-raw.zip\"").body(body)
         }
         val type = FILES[name] ?: return ResponseEntity.notFound().build<Unit>()
         val f = dir.resolve(name)
         if (!Files.exists(f)) return ResponseEntity.notFound().build<Unit>()
-        return ResponseEntity.ok().contentType(type).body(FileSystemResource(f))
+        // report.html carries scan-derived text: render it without script or same-origin access
+        return ResponseEntity.ok().contentType(type).apply { if (name == "report.html") header("Content-Security-Policy", "sandbox") }
+            .body(FileSystemResource(f))
     }
 
     @ExceptionHandler(InvalidInput::class)
