@@ -1,0 +1,29 @@
+:root { font: 14px/1.45 system-ui, sans-serif; color: #1d2433; background: #f6f7f9; }
+body { margin: 0; }
+header { display: flex; gap: 24px; align-items: center; padding: 12px 24px; background: #1d2433; color: #fff; }
+header nav { display: flex; gap: 16px; }
+header a { color: #cdd6f4; text-decoration: none; }
+main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+.card { background: #fff; border: 1px solid #dde1e7; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+label { display: block; margin: 8px 0; }
+input[type=text] { width: 100%; max-width: 640px; padding: 6px 8px; box-sizing: border-box; }
+button { padding: 6px 14px; cursor: pointer; }
+.error { color: #b42318; }
+.muted { color: #667085; }
+table { border-collapse: collapse; width: 100%; background: #fff; }
+th, td { border-bottom: 1px solid #eaecf0; padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: #f2f4f7; position: sticky; top: 0; }
+tr.clickable:hover { background: #f5f8ff; cursor: pointer; }
+tr.review td:first-child { border-left: 3px solid #f79009; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: #eaecf0; }
+.badge.DONE { background: #d1fadf; } .badge.PARTIAL { background: #fef0c7; } .badge.FAILED { background: #fee4e2; }
+.badge.RUNNING, .badge.QUEUED { background: #d1e9ff; }
+.tabs { display: flex; gap: 8px; margin: 12px 0; }
+.tabs button.active { font-weight: bold; }
+.row { display: flex; gap: 16px; flex-wrap: wrap; }
+.tree ul { list-style: none; padding-left: 18px; margin: 0; }
+.tree li > span { cursor: pointer; }
+.detail { position: fixed; right: 0; top: 0; bottom: 0; width: min(520px, 100vw); overflow: auto; background: #fff; border-left: 1px solid #dde1e7; padding: 16px; box-shadow: -4px 0 12px #0001; }
+.detail dt { font-weight: bold; margin-top: 8px; }
+.detail dd { margin: 0; word-break: break-all; }
+code { font-size: 12px; }
