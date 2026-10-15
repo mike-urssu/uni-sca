@@ -17,7 +17,6 @@ class ScannersTest {
         val a = dockerArgs(ContainerSpec("syft", "img", listOf("x"), listOf(Mount(Path.of("/h"), "/src", true)), false, "/out/syft.json"), Limits())
         assertTrue(a.containsAll(listOf("--cap-drop", "ALL", "--network", "none", "--security-opt", "no-new-privileges", "-v", "/h:/src:ro", "--rm")))
         assertEquals(listOf("img", "x"), a.takeLast(2))
-        assertTrue(a.windowed(2).contains(listOf("--tmpfs", "/tmp")))   // non-root tools need a writable /tmp (HOME)
         assertThrows<IllegalArgumentException> {
             dockerArgs(ContainerSpec("x", "i", emptyList(), listOf(Mount(Path.of("/var/run/docker.sock"), "/var/run/docker.sock", false)), false, ""), Limits())
         }
@@ -31,6 +30,15 @@ class ScannersTest {
         assertTrue(Scanners.specs(Acquired(TargetKind.IMAGE, tmp.resolve("i.tar"), "sha"), true, tmp.resolve("raw"), tmp.resolve("db"), images).none { it.tool == "scancode" })
     }
 
+    @Test fun `every scanner gets a host-backed writable tmp under work`() {   // syft unpacks image layers into /tmp
+        val s = Scanners.specs(Acquired(TargetKind.IMAGE, tmp.resolve("i.tar"), "sha"), false, tmp.resolve("raw"), tmp.resolve("db"), images)
+        s.forEach { spec ->
+            val m = spec.mounts.single { it.container == "/tmp" }
+            assertEquals(tmp.resolve("work/tmp-${spec.tool}"), m.host)
+            assertTrue(!m.readOnly && java.nio.file.Files.isDirectory(m.host))
+        }
+    }
+
     @Test fun `syft does not phone home for updates`() {
         val syft = Scanners.specs(Acquired(TargetKind.REPO, tmp, "sha"), false, tmp.resolve("raw"), tmp.resolve("db"), images).single { it.tool == "syft" }
         assertTrue(dockerArgs(syft, Limits()).windowed(2).contains(listOf("-e", "SYFT_CHECK_FOR_APP_UPDATE=false")))
@@ -38,6 +46,6 @@ class ScannersTest {
 
     @Test fun `only cdxgen and the output dir are writable`() {
         val s = Scanners.specs(Acquired(TargetKind.REPO, tmp, "sha"), deep = true, tmp.resolve("raw"), tmp.resolve("db"), images)
-        s.forEach { spec -> spec.mounts.filter { !it.readOnly }.forEach { m -> assertTrue(m.container == "/out" || (spec.tool == "cdxgen" && m.container == "/src"), "${spec.tool} ${m.container}") } }
+        s.forEach { spec -> spec.mounts.filter { !it.readOnly }.forEach { m -> assertTrue(m.container in setOf("/out", "/tmp") || (spec.tool == "cdxgen" && m.container == "/src"), "${spec.tool} ${m.container}") } }
     }
 }

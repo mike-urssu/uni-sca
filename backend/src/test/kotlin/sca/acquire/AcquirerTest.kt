@@ -40,6 +40,18 @@ class AcquirerTest {
         assertTrue(Files.exists(a.path.resolve("package.json")))
     }
 
+    @Test fun `relative work dirs work (the server's data dir is relative)`() {
+        val origin = tmp.resolve("origin2").also { Files.createDirectories(it) }
+        fun git(vararg a: String) = ProcessBuilder(listOf("git", "-C", origin.toString()) + a).redirectErrorStream(true).start().run { inputStream.readAllBytes(); waitFor() }
+        git("init", "-q"); Files.writeString(origin.resolve("a.txt"), "x")
+        git("add", "."); git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+        val work = Path.of("build", "acquire-rel-${System.nanoTime()}")
+        try {
+            val a = Acquirer().acquire(Target.Repo(origin.toUri().toString(), null), work)
+            assertTrue(Files.exists(a.path.resolve("a.txt")), a.path.toString())
+        } finally { work.toFile().deleteRecursively() }
+    }
+
     @Test fun `image tar is hashed`() {
         val tar = Files.writeString(tmp.resolve("i.tar"), "abc")
         val a = Acquirer().acquire(Target.ImageTar(tar), tmp.resolve("work"))

@@ -34,8 +34,9 @@ fun parseTarget(input: String, ref: String?): Target {
 data class Acquired(val kind: TargetKind, val path: Path, val id: String)
 
 open class Acquirer(val gitTimeout: Duration = Duration.ofMinutes(10), val dockerTimeout: Duration = Duration.ofMinutes(30)) {
-    open fun acquire(t: Target, work: Path): Acquired {
-        Files.createDirectories(work)
+    open fun acquire(t: Target, workDir: Path): Acquired {
+        // commands run with `work` as their cwd, so every path handed to them must be absolute
+        val work = workDir.toAbsolutePath().also { Files.createDirectories(it) }
         return when (t) {
             is Target.Repo -> {
                 val dest = work.resolve("src")
@@ -51,7 +52,7 @@ open class Acquirer(val gitTimeout: Duration = Duration.ofMinutes(10), val docke
                     .getOrNull()?.substringAfter('@', "")?.takeIf { it.startsWith("sha256:") }
                 Acquired(TargetKind.IMAGE, tar, digest ?: sha256(tar))
             }
-            is Target.ImageTar -> Acquired(TargetKind.IMAGE, t.path, sha256(t.path))
+            is Target.ImageTar -> Acquired(TargetKind.IMAGE, t.path.toAbsolutePath(), sha256(t.path))
         }
     }
 

@@ -81,7 +81,7 @@ class TrivyDb(private val props: ScaProperties) {
         val user = com.sun.security.auth.module.UnixSystem().let { "${it.uid}:${it.gid}" }
         for (flag in listOf("--download-db-only", "--download-java-db-only")) {
             ProcessBuilder("docker", "run", "--rm", "--user", user, "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-                "--tmpfs", "/tmp", "-e", "HOME=/tmp", "-v", "${dir.toAbsolutePath()}:/trivy", props.images.getValue("trivy"),
+                "--tmpfs", "/tmp:mode=1777", "-e", "HOME=/tmp", "-v", "${dir.toAbsolutePath()}:/trivy", props.images.getValue("trivy"),
                 "image", flag, "--cache-dir", "/trivy", "-q").inheritIO().start().waitFor(30, TimeUnit.MINUTES)
         }
     }

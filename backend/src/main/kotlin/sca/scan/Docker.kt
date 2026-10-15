@@ -24,7 +24,7 @@ fun dockerArgs(s: ContainerSpec, limits: Limits, name: String = "sca-${s.tool}-$
     }
     val user = UnixSystem().let { "${it.uid}:${it.gid}" }
     return listOf("run", "--rm", "--name", name, "--user", user, "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-        "--cpus", limits.cpus, "--memory", limits.memory, "--tmpfs", "/tmp", "-e", "HOME=/tmp") +
+        "--cpus", limits.cpus, "--memory", limits.memory, "-e", "HOME=/tmp") +
         s.env.flatMap { (k, v) -> listOf("-e", "$k=$v") } +
         (if (s.network) emptyList() else listOf("--network", "none")) +
         s.mounts.flatMap { listOf("-v", "${it.host.toAbsolutePath()}:${it.container}${if (it.readOnly) ":ro" else ""}") } +
