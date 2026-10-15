@@ -20,12 +20,13 @@ data class RawComponent(
 data class RawResult(
     val tool: String, val components: List<RawComponent>,
     val edges: Set<Pair<String, String>>,   // ref → ref (first depends on second)
-    val roots: Set<String>?,                // null when the tool has no notion of a root
+    val roots: Set<String>?,                // direct dependencies of the project; null when the tool doesn't know
+    val project: String? = null,            // purl of the scanned project itself, when the tool reports it
 )
 
 data class NormalizedResult(
     val tool: String, val components: Map<String, RawComponent>, // key → component
-    val edges: Set<Pair<String, String>>, val roots: Set<String>?,
+    val edges: Set<Pair<String, String>>, val roots: Set<String>?, val project: String? = null, // project: key
 )
 
 data class Component(
