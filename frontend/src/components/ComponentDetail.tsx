@@ -1,7 +1,8 @@
 import { pathTo } from '../graph'
 import type { Component, ScanResult, Sourced } from '../types'
+import { DepGraph } from './DepGraph'
 
-interface Props { component: Component; result: ScanResult; byKey: Map<string, Component>; onClose: () => void; onSelect: (key: string) => void }
+interface Props { component: Component; graphRoot: string; result: ScanResult; byKey: Map<string, Component>; onClose: () => void; onSelect: (key: string) => void }
 
 function Field({ label, v, link }: { label: string; v: Sourced<string> | null; link?: boolean }) {
   return <>
@@ -10,7 +11,7 @@ function Field({ label, v, link }: { label: string; v: Sourced<string> | null; l
   </>
 }
 
-export function ComponentDetail({ component: c, result, byKey, onClose, onSelect }: Props) {
+export function ComponentDetail({ component: c, graphRoot, result, byKey, onClose, onSelect }: Props) {
   const path = pathTo(result, c.key)
   return (
     <aside className="detail">
@@ -36,6 +37,8 @@ export function ComponentDetail({ component: c, result, byKey, onClose, onSelect
         {c.locations.length > 0 && <><dt>Locations</dt><dd>{c.locations.map((l) => <div key={l}><code>{l}</code></div>)}</dd></>}
         {Object.keys(c.licenseTexts).length > 0 && <><dt>License texts</dt><dd>{Object.entries(c.licenseTexts).map(([k, t]) => <details key={k}><summary>{k}</summary><pre style={{ whiteSpace: 'pre-wrap' }}>{t}</pre></details>)}</dd></>}
       </dl>
+      <h3>Dependencies of {byKey.get(graphRoot)?.name ?? graphRoot}</h3>
+      <DepGraph result={result} root={graphRoot} byKey={byKey} selected={c.key} onSelect={onSelect} />
     </aside>
   )
 }

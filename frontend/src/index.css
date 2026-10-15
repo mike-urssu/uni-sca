@@ -18,12 +18,20 @@ tr.review td:first-child { border-left: 3px solid #f79009; }
 .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: #eaecf0; }
 .badge.DONE { background: #d1fadf; } .badge.PARTIAL { background: #fef0c7; } .badge.FAILED { background: #fee4e2; }
 .badge.RUNNING, .badge.QUEUED { background: #d1e9ff; }
-.tabs { display: flex; gap: 8px; margin: 12px 0; }
-.tabs button.active { font-weight: bold; }
 .row { display: flex; gap: 16px; flex-wrap: wrap; }
-.tree ul { list-style: none; padding-left: 18px; margin: 0; }
-.tree li > span { cursor: pointer; }
-.detail { position: fixed; right: 0; top: 0; bottom: 0; width: min(520px, 100vw); overflow: auto; background: #fff; border-left: 1px solid #dde1e7; padding: 16px; box-shadow: -4px 0 12px #0001; }
+.toggle { display: inline-block; width: 14px; cursor: pointer; color: #475467; }
+.detail { position: fixed; right: 0; top: 0; bottom: 0; width: min(980px, 100vw); box-sizing: border-box; overflow: auto; background: #fff; border-left: 1px solid #dde1e7; padding: 16px; box-shadow: -4px 0 12px #0001; }
 .detail dt { font-weight: bold; margin-top: 8px; }
 .detail dd { margin: 0; word-break: break-all; }
 code { font-size: 12px; }
+.graph { overflow: auto; border: 1px solid #eaecf0; border-radius: 6px; background: #fcfcfd; padding: 4px; }
+.graph .edge { fill: none; stroke: #98a2b3; stroke-width: 1.2; }
+.graph .edge.back { stroke-dasharray: 4 3; stroke: #f79009; }
+.graph .edge-head { fill: #98a2b3; }
+.graph .node { cursor: pointer; }
+.graph .node rect { fill: #fff; stroke: #d0d5dd; }
+.graph .node.root rect { fill: #eef4ff; stroke: #444ce7; }
+.graph .node.review rect { stroke: #f79009; }
+.graph .node.selected rect { stroke: #1d2433; stroke-width: 2; }
+.graph .node text { font: 12px system-ui, sans-serif; fill: #1d2433; }
+.graph .node:hover rect { fill: #f5f8ff; }

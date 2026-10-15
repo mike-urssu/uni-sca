@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fileUrl, getResult, getScan, watch } from '../api'
-import { TERMINAL, type Component, type JobStatus, type ScanResult } from '../types'
+import { TERMINAL, type JobStatus, type ScanResult } from '../types'
 import { Summary } from '../components/Summary'
 import { ComponentTable } from '../components/ComponentTable'
-import { DepTree } from '../components/DepTree'
 import { ComponentDetail } from '../components/ComponentDetail'
 
 const STAGES = ['queued', 'acquire', 'scan', 'normalize', 'merge', 'enrich', 'emit']
@@ -12,8 +11,8 @@ export function JobView({ id }: { id: string }) {
   const [job, setJob] = useState<JobStatus | null>(null)
   const [result, setResult] = useState<ScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<'table' | 'tree'>('table')
   const [selected, setSelected] = useState<string | null>(null)
+  const [graphRoot, setGraphRoot] = useState<string | null>(null)
 
   useEffect(() => {
     setJob(null); setResult(null); setError(null)
@@ -27,7 +26,8 @@ export function JobView({ id }: { id: string }) {
   }, [id, done, job?.status])
 
   const byKey = useMemo(() => new Map((result?.components ?? []).map((c) => [c.key, c])), [result])
-  const open = (c: Component | string) => setSelected(typeof c === 'string' ? c : c.key)
+  // a list row picks the graph's root; clicking inside the panel only moves the selection
+  const openFromList = (key: string) => { setGraphRoot(key); setSelected(key) }
 
   if (error) return <p className="error">{error}</p>
   if (!job) return <p className="muted">Loading…</p>
@@ -45,12 +45,9 @@ export function JobView({ id }: { id: string }) {
       </div>
       {result && <>
         <Summary result={result} />
-        <div className="tabs">
-          <button className={tab === 'table' ? 'active' : ''} onClick={() => setTab('table')}>Components</button>
-          <button className={tab === 'tree' ? 'active' : ''} onClick={() => setTab('tree')}>Dependency tree</button>
-        </div>
-        {tab === 'table' ? <ComponentTable components={result.components} onSelect={open} /> : <DepTree result={result} byKey={byKey} onSelect={open} />}
-        {selected && byKey.get(selected) && <ComponentDetail component={byKey.get(selected)!} result={result} byKey={byKey} onClose={() => setSelected(null)} onSelect={open} />}
+        <ComponentTable result={result} byKey={byKey} onSelect={openFromList} />
+        {selected && graphRoot && byKey.get(selected) && <ComponentDetail component={byKey.get(selected)!} graphRoot={graphRoot} result={result} byKey={byKey}
+          onClose={() => setSelected(null)} onSelect={setSelected} />}
       </>}
     </>
   )
