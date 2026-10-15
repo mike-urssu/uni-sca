@@ -1,5 +1,6 @@
 package sca.web
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.core.io.FileSystemResource
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -34,6 +35,7 @@ private val FILES = mapOf(
 )
 
 @RestController
+@ConditionalOnWebApplication
 @RequestMapping("/api/scans")
 class ScanController(private val runner: JobRunner, private val store: JobStore) {
 

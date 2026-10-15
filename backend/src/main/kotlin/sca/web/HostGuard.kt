@@ -1,5 +1,6 @@
 package sca.web
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -13,6 +14,7 @@ import java.net.URI
  * on POST forces a CORS preflight that this server never answers.
  */
 @Component
+@ConditionalOnWebApplication
 class HostGuard : OncePerRequestFilter() {
     private val loopback = setOf("localhost", "127.0.0.1", "[::1]")
 

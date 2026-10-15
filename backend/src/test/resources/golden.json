@@ -1,0 +1,11 @@
+{
+  "lab" : {
+    "npm" : 56
+  },
+  "node:16-slim" : {
+    "deb" : 86,
+    "generic" : 1,
+    "npm" : 207,
+    "pypi" : 4
+  }
+}
