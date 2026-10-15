@@ -1,6 +1,7 @@
 package sca.job
 
 import jakarta.annotation.PreDestroy
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import sca.ScaProperties
@@ -86,7 +87,9 @@ class TrivyDb(private val props: ScaProperties) {
     }
 }
 
+// web mode only: a CLI run must not mark a live server's jobs as interrupted
 @Service
+@ConditionalOnWebApplication
 class JobRunner(private val store: JobStore, private val pipeline: Pipeline, private val trivyDb: TrivyDb, props: ScaProperties) {
     private val pool = Executors.newFixedThreadPool(props.workers)
     private val emitters = ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>>()
@@ -97,6 +100,16 @@ class JobRunner(private val store: JobStore, private val pipeline: Pipeline, pri
 
     fun submit(input: ScanInput): String {
         val job = store.create(input)
+        pool.submit { run(job) }
+        return job.id
+    }
+
+    /** Stores an uploaded image tar as jobs/<id>/upload.tar, then queues the scan. */
+    fun submitUpload(name: String, deep: Boolean, transfer: (Path) -> Unit): String {
+        val created = store.create(ScanInput(name, deep = deep))
+        val tar = store.dir(created.id).resolve("upload.tar")
+        transfer(tar)
+        val job = created.copy(input = created.input.copy(uploadedTar = tar.toAbsolutePath())).also(store::save)
         pool.submit { run(job) }
         return job.id
     }
