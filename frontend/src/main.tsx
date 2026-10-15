@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { ScanForm } from './pages/ScanForm'
 import { JobList } from './pages/JobList'
+import { JobView } from './pages/JobView'
 
 // Hash routes: #/ (new scan), #/jobs, #/jobs/<id>
 function useHash() {
@@ -25,7 +26,7 @@ function App() {
         <nav><a href="#/">New scan</a><a href="#/jobs">Scans</a></nav>
       </header>
       <main>
-        {job ? <p>Job {job}</p> : route === '/jobs' ? <JobList /> : <ScanForm />}
+        {job ? <JobView id={job} /> : route === '/jobs' ? <JobList /> : <ScanForm />}
       </main>
     </>
   )

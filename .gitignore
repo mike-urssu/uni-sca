@@ -7,3 +7,4 @@ backend/.kotlin/
 backend/src/main/resources/static/
 frontend/dist/
 .DS_Store
+.playwright-mcp/
