@@ -1,0 +1,10 @@
+# Field priority per tool, first tool with a value wins. "app" for language packages, "os" for deb/rpm/apk/alpm.
+# Initial hypothesis from the spec; Task 14 (tool analysis) tunes it from measurements.
+fields:
+  graph:       { app: [cdxgen, syft, trivy],           os: [syft, trivy, cdxgen] }
+  licenses:    { app: [cdxgen, syft, trivy, scancode], os: [trivy, syft, cdxgen] }
+  scope:       { app: [cdxgen],                        os: [] }
+  hashes:      { app: [cdxgen, syft, trivy],           os: [syft, trivy, cdxgen] }
+  downloadUrl: { app: [cdxgen, syft, scancode, trivy], os: [syft, cdxgen, trivy] }
+  supplier:    { app: [cdxgen, syft, trivy],           os: [syft, trivy, cdxgen] }
+  sourceRepo:  { app: [cdxgen, scancode, syft, trivy], os: [syft, cdxgen, trivy] }

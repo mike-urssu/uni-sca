@@ -22,6 +22,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
+	implementation("tools.jackson.dataformat:jackson-dataformat-yaml")
 	implementation("com.github.package-url:packageurl-java:1.5.0")
 	implementation("org.cyclonedx:cyclonedx-core-java:13.2.0")
 	implementation("com.networknt:json-schema-validator:3.0.8")
