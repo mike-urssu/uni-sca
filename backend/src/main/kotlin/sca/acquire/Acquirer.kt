@@ -22,7 +22,8 @@ private val IMAGE_REF = Regex("""^[a-zA-Z0-9][a-zA-Z0-9._/:@-]{0,254}$""")
 
 /** Classifies user input. Everything here ends up as a process argument, so anything option-like or shell-like is rejected. */
 fun parseTarget(input: String, ref: String?): Target {
-    val s = input.trim()
+    // a pasted `docker pull <image>` line works as-is; a scheme-less github.com path is a repo, not an image on a registry named github.com
+    val s = input.trim().removePrefix("docker pull ").trim().let { if (it.startsWith("github.com/")) "https://$it" else it }
     if (ref != null && !GIT_REF.matches(ref)) throw InvalidInput("invalid git ref: $ref")
     if (s.startsWith("https://")) return if (REPO_URL.matches(s)) Target.Repo(s, ref) else throw InvalidInput("invalid repo URL")
     if (s.endsWith(".tar") && runCatching { Files.isRegularFile(Path.of(s)) }.getOrDefault(false)) return Target.ImageTar(Path.of(s))
@@ -46,7 +47,13 @@ open class Acquirer(val gitTimeout: Duration = Duration.ofMinutes(10), val docke
             }
             is Target.ImageRef -> {
                 val tar = work.resolve("image.tar")
-                run(listOf("docker", "pull", "-q", "--", t.ref), work, dockerTimeout)
+                try { run(listOf("docker", "pull", "-q", "--", t.ref), work, dockerTimeout) } catch (e: AcquireFailed) {
+                    // private images use the host's docker credentials
+                    if (Regex("unauthorized|denied", RegexOption.IGNORE_CASE).containsMatchIn(e.message ?: "")) {
+                        throw AcquireFailed("${e.message}\nprivate image? run `docker login ${t.ref.substringBefore('/').takeIf { '.' in it || ':' in it } ?: "docker.io"}` on the server host, then rescan")
+                    }
+                    throw e
+                }
                 run(listOf("docker", "save", "-o", tar.toString(), "--", t.ref), work, dockerTimeout)
                 val digest = runCatching { run(listOf("docker", "inspect", "--format", "{{index .RepoDigests 0}}", "--", t.ref), work, dockerTimeout).trim() }
                     .getOrNull()?.substringAfter('@', "")?.takeIf { it.startsWith("sha256:") }

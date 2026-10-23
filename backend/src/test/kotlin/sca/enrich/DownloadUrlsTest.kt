@@ -36,6 +36,8 @@ class DownloadUrlsTest {
         assertEquals("http://deb.debian.org/debian/pool/main/a/attr/attr_2.4.48-4_arm64.deb", DownloadUrls.forPurl("pkg:deb/debian/attr@1%3A2.4.48-4?arch=arm64"))
         assertEquals("http://deb.debian.org/debian/pool/main/libx/libxml2/libxml2_2.9.4_amd64.deb",
             DownloadUrls.forPurl("pkg:deb/debian/libxml2@2.9.4?arch=amd64"))   // lib* sources use a 4-letter pool prefix
+        assertEquals("http://archive.debian.org/debian/pool/main/a/adduser/adduser_3.118_all.deb",
+            DownloadUrls.forPurl("pkg:deb/debian/adduser@3.118?arch=all&distro=debian-10.13"))   // buster left the main mirror
         assertNull(DownloadUrls.forPurl("pkg:deb/debian/attr@2.4.48-4"))   // no arch
     }
 

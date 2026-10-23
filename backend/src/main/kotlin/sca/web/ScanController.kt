@@ -89,8 +89,8 @@ class ScanController(private val runner: JobRunner, private val store: JobStore)
         val type = FILES[name] ?: return ResponseEntity.notFound().build<Unit>()
         val f = dir.resolve(name)
         if (!Files.exists(f)) return ResponseEntity.notFound().build<Unit>()
-        // report.html carries scan-derived text: render it without script or same-origin access
-        return ResponseEntity.ok().contentType(type).apply { if (name == "report.html") header("Content-Security-Policy", "sandbox") }
+        // report.html carries scan-derived text: render it without script or same-origin access; downloads stay allowed for its download-URL links
+        return ResponseEntity.ok().contentType(type).apply { if (name == "report.html") header("Content-Security-Policy", "sandbox allow-downloads") }
             .body(FileSystemResource(f))
     }
 

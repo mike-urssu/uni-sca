@@ -34,7 +34,7 @@ data class ScanInput(val target: String, val ref: String? = null, val deep: Bool
 fun interface ScanStep { fun run(spec: ContainerSpec, log: Path): Boolean }
 
 // cdxgen log lines that mean a build tool could not resolve the dependency tree
-private val RESOLUTION_FAILURE = Regex("Unable to|exited with error")
+private val RESOLUTION_FAILURE = Regex("Unable to|exited with error|No packages found")
 
 class Pipeline(val props: ScaProperties, val acquirer: Acquirer, val step: ScanStep, val enricher: Enricher, val rules: MergeRules) {
     /** Writes everything into jobDir. Invalid input and acquire failures throw; scanner failures become PARTIAL/FAILED. */

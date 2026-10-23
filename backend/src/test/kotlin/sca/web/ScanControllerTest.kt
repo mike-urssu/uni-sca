@@ -63,7 +63,7 @@ class ScanControllerTest {
         whenever(store.dir(id)).thenReturn(dir)
         mvc.perform(get("/api/scans/$id/files/report.html"))
             .andExpect(status().isOk)
-            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Security-Policy", "sandbox"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Security-Policy", "sandbox allow-downloads"))
     }
 
     @Test fun `raw zip contains regular files only`(@org.junit.jupiter.api.io.TempDir dir: java.nio.file.Path) {

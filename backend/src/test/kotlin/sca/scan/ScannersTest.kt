@@ -45,6 +45,13 @@ class ScannersTest {
         s.forEach { assertEquals(tmp.resolve("raw/${it.tool}"), it.mounts.single { m -> m.container == "/out" }.host) }
     }
 
+    @Test fun `cdxgen resolves gradle builds with its own jdk`() {   // projects pin toolchains the image does not have
+        val cdx = Scanners.specs(Acquired(TargetKind.REPO, src(), "sha"), false, tmp.resolve("raw"), tmp.resolve("work"), tmp.resolve("db"), images).single { it.tool == "cdxgen" }
+        val init = cdx.mounts.single { it.container == "/sca/init.gradle" }
+        assertTrue(init.readOnly && java.nio.file.Files.readString(init.host).contains("JavaLanguageVersion.current()"))
+        assertTrue(cdx.env.getValue("GRADLE_ARGS").contains("--init-script /sca/init.gradle"))
+    }
+
     @Test fun `syft does not phone home for updates`() {
         val syft = Scanners.specs(Acquired(TargetKind.REPO, src(), "sha"), false, tmp.resolve("raw"), tmp.resolve("work"), tmp.resolve("db"), images).single { it.tool == "syft" }
         assertTrue(dockerArgs(syft, Limits()).windowed(2).contains(listOf("-e", "SYFT_CHECK_FOR_APP_UPDATE=false")))

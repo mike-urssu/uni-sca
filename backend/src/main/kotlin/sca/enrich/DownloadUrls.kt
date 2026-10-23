@@ -22,12 +22,14 @@ object DownloadUrls {
             "cargo" -> "https://crates.io/api/v1/crates/$n/$v/download"
             "nuget" -> n.lowercase().let { ln -> "https://api.nuget.org/v3-flatcontainer/$ln/${v.lowercase()}/$ln.${v.lowercase()}.nupkg" }
             "gem" -> "https://rubygems.org/downloads/$n-$v.gem"
-            // ponytail: assumes the "main" component and the primary mirror; contrib/non-free and security
-            // updates need a snapshot.debian.org lookup, add when those show up unresolved.
+            // ponytail: assumes the "main" component; contrib/non-free and security updates need a snapshot.debian.org lookup,
+            // add when those show up unresolved. Releases up to 10 (buster) only live on the archive; bump when bullseye moves there.
             "deb" -> q["arch"]?.takeIf { p.namespace == "debian" }?.let { arch ->
                 val src = q["upstream"]?.substringBefore(' ')?.substringBefore('@') ?: n
                 val prefix = if (src.startsWith("lib")) src.take(4) else src.take(1)
-                "http://deb.debian.org/debian/pool/main/$prefix/$src/${n}_${v.substringAfter(':')}_$arch.deb"
+                val major = q["distro"]?.removePrefix("debian-")?.substringBefore('.')?.toIntOrNull()
+                val host = if (major != null && major <= 10) "archive.debian.org" else "deb.debian.org"
+                "http://$host/debian/pool/main/$prefix/$src/${n}_${v.substringAfter(':')}_$arch.deb"
             }
             else -> null
         }

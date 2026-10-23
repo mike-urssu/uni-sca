@@ -73,7 +73,7 @@ export function ComponentTable({ result, byKey, onSelect }: { result: ScanResult
         <label><input type="checkbox" checked={reviewOnly} onChange={(e) => setReviewOnly(e.target.checked)} /> Needs review only</label>
         <span className="muted">{filtering ? `${rows.length} matching` : `${rows.length} direct · expand ▸ to see what each one pulls in`}</span>
       </div>
-      <table>
+      <div className="table-wrap"><table>
         <thead><tr><th>Name</th><th>Version</th><th>Ecosystem</th><th>License</th><th>Relation</th><th>Scope</th><th>Download URL</th><th>Supplier</th><th>Found by</th><th>Review</th></tr></thead>
         <tbody>
           {filtering
@@ -81,7 +81,7 @@ export function ComponentTable({ result, byKey, onSelect }: { result: ScanResult
               <tr key={c.key} className={`clickable${c.needsReview ? ' review' : ''}`} onClick={() => onSelect(c.key)}><td>{c.name}</td><Cells c={c} /></tr>))
             : rows.slice(0, shown).map((c) => <TreeRow key={c.key} k={c.key} depth={0} ancestors={new Set()} kids={kids} byKey={byKey} onSelect={onSelect} />)}
         </tbody>
-      </table>
+      </table></div>
       {rows.length > shown && <button onClick={() => setShown(shown + PAGE)} style={{ marginTop: 8 }}>Show more ({rows.length - shown} left)</button>}
     </>
   )

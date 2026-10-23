@@ -23,7 +23,7 @@ function App() {
     <>
       <header>
         <b>SCA Integration</b>
-        <nav><a href="#/">New scan</a><a href="#/jobs">Scans</a></nav>
+        <nav><a href="#/" className={route === '/' ? 'active' : ''}>New scan</a><a href="#/jobs" className={route.startsWith('/jobs') ? 'active' : ''}>Scans</a></nav>
       </header>
       <main>
         {job ? <JobView id={job} /> : route === '/jobs' ? <JobList /> : <ScanForm />}

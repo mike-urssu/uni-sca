@@ -17,7 +17,7 @@ export function JobList() {
   if (!jobs) return <p className="muted">Loading…</p>
   if (jobs.length === 0) return <p className="muted">No scans yet. <a href="#/">Start one.</a></p>
   return (
-    <table>
+    <div className="table-wrap"><table>
       <thead><tr><th>Status</th><th>Target</th><th>Started</th><th>Stage / error</th></tr></thead>
       <tbody>
         {jobs.map((j) => (
@@ -29,6 +29,6 @@ export function JobList() {
           </tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   )
 }

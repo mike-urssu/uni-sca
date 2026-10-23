@@ -18,6 +18,8 @@ class AcquirerTest {
         assertEquals(Target.Repo("https://github.com/a/b", "v1"), parseTarget("https://github.com/a/b", "v1"))
         assertEquals(Target.ImageRef("ghcr.io/a/b@sha256:" + "0".repeat(64)), parseTarget("ghcr.io/a/b@sha256:" + "0".repeat(64), null))
         assertEquals(Target.ImageRef("node:16-slim"), parseTarget("node:16-slim", null))
+        assertEquals(Target.ImageRef("ghcr.io/a/b:1.0.0-ad9d"), parseTarget("docker pull ghcr.io/a/b:1.0.0-ad9d", null))
+        assertEquals(Target.Repo("https://github.com/a/b", null), parseTarget("github.com/a/b", null))
         listOf("--privileged", "a b", "\$(id)", "`id`", "http://x/y.git", "file:///etc", "", "https://x/y --upload-pack=evil")
             .forEach { assertThrows<InvalidInput>(it) { parseTarget(it, null) } }
         assertThrows<InvalidInput> { parseTarget("https://github.com/a/b", "--upload-pack=evil") }

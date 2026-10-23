@@ -7,6 +7,19 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import kotlin.io.path.copyToRecursively
 
+// Gradle dependency resolution inside the cdxgen image, which ships a single JDK:
+// - point any pinned toolchain (java { toolchain }, kotlin { jvmToolchain }) at that JDK; nothing is compiled, only resolved
+// - compile-classpath-packaging skips Gradle's source-root inference, which throws ConcurrentModificationException
+//   when a plugin (e.g. jOOQ codegen) adds source dirs while compileClasspath resolves
+private val GRADLE_INIT = """
+allprojects {
+    afterEvaluate {
+        extensions.findByName('java')?.toolchain?.languageVersion?.set(JavaLanguageVersion.current())
+    }
+}
+"""
+private const val GRADLE_ARGS = "-Dorg.gradle.java.compile-classpath-packaging=true --init-script /sca/init.gradle"
+
 /** Which containers to run for a target. Only cdxgen gets network (build tools resolving transitive deps). */
 object Scanners {
     @OptIn(kotlin.io.path.ExperimentalPathApi::class)
@@ -24,6 +37,7 @@ object Scanners {
             if (!Files.exists(copy)) a.path.copyToRecursively(copy, followLinks = false, overwrite = false)
             Mount(copy, "/src", false)
         } else src
+        val gradleInit = Mount(Files.writeString(work.resolve("init.gradle"), GRADLE_INIT), "/sca/init.gradle", true)
         val trivyCache = listOf("--offline-scan", "--skip-db-update", "--skip-java-db-update", "--cache-dir", "/trivy", "--cache-backend", "memory")
 
         // each tool gets a host-backed /tmp (HOME): non-root users need it writable, and syft unpacks image layers there
@@ -32,7 +46,8 @@ object Scanners {
         return listOfNotNull(
             ContainerSpec("cdxgen", images.getValue("cdxgen"),
                 (if (repo) listOf("-r", target) else listOf("-t", "docker", target)) + listOf("-o", "/out/cdxgen.json", "--spec-version", "1.6"),
-                listOf(cdxSrc, out("cdxgen"), tmp("cdxgen")), network = true, output = "/out/cdxgen.json"),
+                listOf(cdxSrc, out("cdxgen"), tmp("cdxgen"), gradleInit), network = true, output = "/out/cdxgen.json",
+                env = mapOf("GRADLE_ARGS" to GRADLE_ARGS)),
             ContainerSpec("syft", images.getValue("syft"),
                 listOf("scan", if (repo) "dir:$target" else "docker-archive:$target", "-o", "syft-json=/out/syft.json"),
                 listOf(src, out("syft"), tmp("syft")), network = false, output = "/out/syft.json", env = mapOf("SYFT_CHECK_FOR_APP_UPDATE" to "false")),
