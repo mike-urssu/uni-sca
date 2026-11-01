@@ -1,19 +1,19 @@
-// Multibranch Pipeline. Every branch is tested; only main is deployed.
+// Multibranch Pipeline. Every branch is tested; only main is pushed to GHCR and deployed.
 //
 // Jenkins setup:
-//   - Global tool (JDK) named 'jdk21'; the agent needs node/npm on the PATH (frontend build).
+//   - Global tool (JDK) named 'jdk21'; the agent needs node/npm on the PATH (frontend build) and runs Docker
+//     (image build).
 //   - Agent labelled 'macbook' runs the build.
 //   - Credentials:
+//       ghcr-credentials : Username/Password = GitHub user + classic PAT with write:packages
 //       deploy-ssh-key   : SSH private key for the deploy server
 //   - Plugins: Workspace Cleanup (cleanWs), SSH Agent (sshagent).
 //   - Global property DEPLOY_HOST: user@host of the deploy server.
+//   - Optional environment GHCR_OWNER: GitHub user/org that owns the image (defaults to the GHCR username).
 //   - Optional environment DEPLOY_PORT: SSH port of the deploy server (defaults to 22).
 //
-// Deploy server setup (once, as the DEPLOY_HOST user; the server is macOS):
-//   - brew install openjdk@21 and a running Docker (Colima); the app runs the scanner containers.
-//   - mkdir -p /opt/projects/uni-sca owned by that user.
-// The app runs as a launchd user agent (deploy/uni-sca.plist) and listens on 127.0.0.1:8090 only (HostGuard);
-// reach it with ssh -L 8090:localhost:8090 <DEPLOY_HOST>.
+// Deploy server setup (once): $DEPLOY_DIR/.env from deploy/.env.example, a read-only `docker login ghcr.io`,
+// and Traefik on the external 'proxy' network.
 pipeline {
     agent { label 'macbook' }
 
@@ -28,11 +28,10 @@ pipeline {
     }
 
     environment {
+        IMAGE_NAME = 'uni-sca'
         DEPLOY_DIR = '/opt/projects/uni-sca'
         // Keep in step with sca.images.scancode in application.yml.
         SCANCODE_IMAGE = 'sca-scancode:32.5.0'
-        // Keep in step with the Label in deploy/uni-sca.plist.
-        AGENT = 'sca.uni-sca'
     }
 
     stages {
@@ -49,10 +48,35 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Publish image') {
             when { branch 'main' }
             steps {
-                sh './build.sh'
+                withCredentials([usernamePassword(credentialsId: 'ghcr-credentials',
+                        usernameVariable: 'GHCR_USER', passwordVariable: 'GHCR_TOKEN')]) {
+                    script {
+                        // GHCR repository names must be lowercase.
+                        def owner = (env.GHCR_OWNER ?: env.GHCR_USER).toLowerCase()
+                        env.IMAGE = "ghcr.io/${owner}/${env.IMAGE_NAME}"
+                        env.IMAGE_TAG = sh(script: 'git rev-parse --short=12 HEAD', returnStdout: true).trim()
+                    }
+                    sh '''
+                        ./build.sh
+                        # The agent runs as a system daemon without the user's keychain, so Docker's keychain credential
+                        # helpers fail (Keychain Error -61). The macOS CLI picks such a helper whenever one is on the PATH,
+                        # so run docker with the helpers hidden and a throwaway config; it is removed when the step ends.
+                        DOCKER_BIN="$(command -v docker)"
+                        docker() { PATH=/usr/bin:/bin:/usr/sbin:/sbin "$DOCKER_BIN" "$@"; }
+                        export DOCKER_HOST="$(docker context inspect --format '{{.Endpoints.docker.Host}}')"
+                        export DOCKER_CONFIG="$(mktemp -d)"
+                        trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+                        ln -s "$HOME/.docker/cli-plugins" "$DOCKER_CONFIG/cli-plugins" # buildx
+                        echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+                        docker build --pull --platform linux/arm64 -f deploy/Dockerfile \
+                            -t "$IMAGE:$IMAGE_TAG" -t "$IMAGE:latest" backend/build/libs
+                        docker push "$IMAGE:$IMAGE_TAG"
+                        docker push "$IMAGE:latest"
+                    '''
+                }
             }
         }
 
@@ -60,26 +84,22 @@ pipeline {
             when { branch 'main' }
             steps {
                 sshagent(credentials: ['deploy-ssh-key']) {
+                    // The server pulls with its own read-only GHCR login, so the write token never leaves Jenkins.
                     sh '''
                         PORT="${DEPLOY_PORT:-22}"
                         OPTS="-o StrictHostKeyChecking=accept-new"
-                        SSH="ssh -p $PORT $OPTS $DEPLOY_HOST"
-
-                        $SSH "mkdir -p $DEPLOY_DIR/docker ~/Library/LaunchAgents"
-                        scp -P "$PORT" $OPTS backend/build/libs/uni-sca.jar "$DEPLOY_HOST:$DEPLOY_DIR/uni-sca.jar.new"
-                        scp -P "$PORT" $OPTS backend/docker/scancode.Dockerfile "$DEPLOY_HOST:$DEPLOY_DIR/docker/"
-                        scp -P "$PORT" $OPTS deploy/uni-sca.plist "$DEPLOY_HOST:Library/LaunchAgents/$AGENT.plist"
-                        # ScanCode has no published image; build it on the server once per pinned tag.
                         # A non-interactive ssh shell lacks Homebrew's PATH, where docker lives.
-                        $SSH "export PATH=/opt/homebrew/bin:\\$PATH && cd $DEPLOY_DIR \
-                            && (docker image inspect $SCANCODE_IMAGE > /dev/null 2>&1 \
+                        SSH="ssh -p $PORT $OPTS $DEPLOY_HOST PATH=/opt/homebrew/bin:\\$PATH"
+                        COMPOSE="docker compose --env-file .env --env-file release.env"
+
+                        $SSH "mkdir -p $DEPLOY_DIR/docker"
+                        scp -P "$PORT" $OPTS deploy/compose.yaml "$DEPLOY_HOST:$DEPLOY_DIR/compose.yaml"
+                        scp -P "$PORT" $OPTS backend/docker/scancode.Dockerfile "$DEPLOY_HOST:$DEPLOY_DIR/docker/"
+                        printf 'IMAGE=%s\\nIMAGE_TAG=%s\\n' "$IMAGE" "$IMAGE_TAG" | $SSH "cat > $DEPLOY_DIR/release.env"
+                        # ScanCode has no published image; build it on the server once per pinned tag.
+                        $SSH "cd $DEPLOY_DIR && (docker image inspect $SCANCODE_IMAGE > /dev/null 2>&1 \
                             || docker build -t $SCANCODE_IMAGE -f docker/scancode.Dockerfile docker/)"
-                        # bootout stops the old process (it may report "not loaded" on the first deploy) and returns before
-                        # the agent is gone; bootstrapping it again too early fails with "5: Input/output error".
-                        $SSH "cd $DEPLOY_DIR && launchctl bootout user/\\$(id -u)/$AGENT 2>/dev/null; \
-                            while launchctl print user/\\$(id -u)/$AGENT > /dev/null 2>&1; do sleep 1; done; \
-                            mv uni-sca.jar.new uni-sca.jar \
-                            && launchctl bootstrap user/\\$(id -u) ~/Library/LaunchAgents/$AGENT.plist"
+                        $SSH "cd $DEPLOY_DIR && $COMPOSE pull app && $COMPOSE up -d"
                     '''
                 }
             }

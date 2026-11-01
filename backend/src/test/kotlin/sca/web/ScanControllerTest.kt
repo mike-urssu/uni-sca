@@ -14,7 +14,7 @@ import sca.job.JobRunner
 import sca.job.JobStore
 import sca.job.ScanInput
 
-@WebMvcTest(ScanController::class, HostGuard::class)
+@WebMvcTest(ScanController::class, HostGuard::class, properties = ["sca.public-host=sca.example.com"])
 class ScanControllerTest {
     @Autowired lateinit var mvc: MockMvc
     @MockitoBean lateinit var runner: JobRunner
@@ -24,6 +24,11 @@ class ScanControllerTest {
     @Test fun `rejects foreign host and origin`() {
         mvc.perform(get("/api/scans/20261015-000000-abcdef").header("Host", "evil.com")).andExpect(status().isForbidden)
         mvc.perform(post("/api/products").contentType(MediaType.APPLICATION_JSON).content("{}").header("Origin", "https://evil.com")).andExpect(status().isForbidden)
+    }
+
+    @Test fun `allows the public host`() {
+        mvc.perform(get("/api/scans/20261015-000000-abcdef/files/status.json").header("Host", "sca.example.com")
+            .header("Origin", "https://sca.example.com")).andExpect(status().isNotFound)
     }
 
     @Test fun `post must be json`() {

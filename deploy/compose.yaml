@@ -1,0 +1,36 @@
+# Copied to the server by Jenkins. IMAGE/IMAGE_TAG come from release.env (written by Jenkins),
+# DATA_DIR and BASIC_AUTH_USERS from .env (created once on the server from .env.example).
+services:
+  app:
+    image: ${IMAGE}:${IMAGE_TAG}
+    restart: unless-stopped
+    # Public traffic comes through Traefik (HTTPS). 8090 is open on localhost only, for Jenkins' Verify stage.
+    ports:
+      - "127.0.0.1:8090:8080"
+    networks:
+      - proxy
+    volumes:
+      # The app starts the scanner containers on the host daemon, which can do anything on the host.
+      # That is why the router below sits behind basic auth.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # The scanner containers bind-mount paths under DATA_DIR on the host, so the app must see them at the same path.
+      # Colima only shares /Users/<user> (and the paths listed in colima.yaml) with its VM, so DATA_DIR lives there.
+      - ${DATA_DIR:?}:${DATA_DIR:?}
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SCA_DATA_DIR: ${DATA_DIR:?}
+      SCA_PUBLIC_HOST: uni-sca.jjoon.cloud
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.uni-sca.rule: Host(`uni-sca.jjoon.cloud`)
+      traefik.http.routers.uni-sca.entrypoints: websecure
+      traefik.http.routers.uni-sca.tls.certresolver: letsencrypt
+      traefik.http.routers.uni-sca.middlewares: uni-sca-auth
+      traefik.http.middlewares.uni-sca-auth.basicauth.users: ${BASIC_AUTH_USERS:?}
+      traefik.http.services.uni-sca.loadbalancer.server.port: "8080"
+
+networks:
+  # Already exists on the server.
+  proxy:
+    external: true
