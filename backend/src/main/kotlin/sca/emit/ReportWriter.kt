@@ -40,5 +40,7 @@ $rows
     // only http(s) becomes a link: download URLs come from lockfiles the scanned repo controls (no javascript: etc.)
     private val HTTP = Regex("^https?://", RegexOption.IGNORE_CASE)
 
-    private fun esc(s: String?) = (s ?: "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
 }
+
+/** HTML-escapes scan-derived text, which is never trusted. */
+internal fun esc(s: String?) = (s ?: "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")

@@ -42,7 +42,7 @@ tasks.withType<Test> {
 }
 
 tasks.bootJar {
-	archiveFileName = "sca.jar"
+	archiveFileName = "uni-sca.jar"
 }
 
 tasks.test {

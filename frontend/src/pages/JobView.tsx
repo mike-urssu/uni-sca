@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { fileUrl, getResult, getScan, watch } from '../api'
 import { TERMINAL, type JobStatus, type ScanResult } from '../types'
-import { Summary } from '../components/Summary'
-import { ComponentTable } from '../components/ComponentTable'
-import { ComponentDetail } from '../components/ComponentDetail'
+import { ResultView } from '../components/ResultView'
 
 const STAGES = ['queued', 'acquire', 'scan', 'normalize', 'merge', 'enrich', 'emit']
 
@@ -11,8 +9,6 @@ export function JobView({ id }: { id: string }) {
   const [job, setJob] = useState<JobStatus | null>(null)
   const [result, setResult] = useState<ScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<string | null>(null)
-  const [graphRoot, setGraphRoot] = useState<string | null>(null)
 
   useEffect(() => {
     setJob(null); setResult(null); setError(null)
@@ -25,15 +21,13 @@ export function JobView({ id }: { id: string }) {
     if (done && job?.status !== 'FAILED') getResult(id).then(setResult, (e) => setError(e.message))
   }, [id, done, job?.status])
 
-  const byKey = useMemo(() => new Map((result?.components ?? []).map((c) => [c.key, c])), [result])
-  // a list row picks the graph's root; clicking inside the panel only moves the selection
-  const openFromList = (key: string) => { setGraphRoot(key); setSelected(key) }
-
   if (error) return <p className="error">{error}</p>
   if (!job) return <p className="muted">Loading…</p>
+  const { productId, versionId } = job.input
   return (
     <>
       <div className="card">
+        {productId && versionId && <p className="muted"><a href={`#/products/${productId}/versions/${versionId}`}>← Back to version</a></p>}
         <h2>{job.input.target}{job.input.ref ? ` @ ${job.input.ref}` : ''} <span className={`badge ${job.status}`}>{job.status}</span></h2>
         {!done && <p>Stage: <b>{job.stage}</b> <span className="muted">({STAGES.indexOf(job.stage ?? '') + 1}/{STAGES.length})</span></p>}
         {job.error && <p className="error">{job.error}</p>}
@@ -43,12 +37,7 @@ export function JobView({ id }: { id: string }) {
         {done && <p>Download: {['sbom.cdx.json', 'sbom.spdx.json', 'report.html', 'raw.zip'].map((n) =>
           <a key={n} href={fileUrl(id, n)} style={{ marginRight: 12 }} download={n === 'report.html' ? undefined : `${id}-${n}`}>{n}</a>)}</p>}
       </div>
-      {result && <>
-        <Summary result={result} />
-        <ComponentTable result={result} byKey={byKey} onSelect={openFromList} />
-        {selected && graphRoot && byKey.get(selected) && <ComponentDetail component={byKey.get(selected)!} graphRoot={graphRoot} result={result} byKey={byKey}
-          onClose={() => setSelected(null)} onSelect={setSelected} />}
-      </>}
+      {result && <ResultView result={result} onChanged={() => getResult(id).then(setResult, (e) => setError(e.message))} />}
     </>
   )
 }

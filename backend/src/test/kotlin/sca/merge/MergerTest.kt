@@ -56,6 +56,11 @@ class MergerTest {
         val d = Merger.merge(Normalizer.normalize(listOf(raw("cdxgen", "pkg:npm/y@1", listOf("Some custom terms")))), MergeRules.load()).components.single()
         assertTrue(d.licenses!!.value.startsWith("LicenseRef-"))
         assertEquals("Some custom terms", d.licenseTexts[d.licenses!!.value])
+        assertEquals("MIT OR CC0-1.0", Merger.spdx("(MIT OR CC0-1.0)", mutableMapOf()))   // a parenthesised expression is still SPDX
+        assertEquals("BSD-3-Clause OR GPL-2.0-only", Merger.spdx("(BSD-3-Clause OR GPL-2.0)", mutableMapOf()))   // deprecated GNU id
+        assertEquals("LGPL-2.1-or-later AND GPL-3.0-only", Merger.canonical("LGPL-2.1+ AND GPL-3.0"))
+        assertEquals("GPL-2.0-only WITH Classpath-exception-2.0", Merger.canonical("GPL-2.0-only WITH Classpath-exception-2.0"))   // current ids untouched
+        assertEquals("(MIT OR Apache-2.0) AND (BSD-2-Clause OR ISC)", Merger.canonical("(MIT OR Apache-2.0) AND (BSD-2-Clause OR ISC)"))   // not one outer pair
     }
 
     @Test fun `component without purl is kept and needs review`() {   // Review Focus 3

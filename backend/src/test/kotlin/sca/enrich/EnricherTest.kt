@@ -66,6 +66,14 @@ class EnricherTest {
         assertEquals(Sourced("BSD-3-Clause", "clearlydefined"), enricher().enrich(comp("pkg:npm/x@1")).licenses)
     }
 
+    @Test fun `copyright statements come from clearlydefined, without replacing a license`() {
+        api.respond("/definitions/npm/npmjs/-/x/1", 200,
+            """{"licensed":{"declared":"BSD-3-Clause","facets":{"core":{"attribution":{"parties":["Copyright (c) 2020 A"," Copyright (c) 2020 A","Copyright B"]}}}}}""")
+        val r = enricher().enrich(comp("pkg:npm/x@1").copy(licenses = Sourced("MIT", "syft")))
+        assertEquals(Sourced("MIT", "syft"), r.licenses)
+        assertEquals(Sourced("Copyright (c) 2020 A\nCopyright B", "clearlydefined"), r.copyright)
+    }
+
     @Test fun `429 retried 3 times then unresolved and not cached`() {
         FakeApi(defaultStatus = 429).use { busy ->
             val r = enricher(busy).enrich(comp("pkg:npm/x@1"))

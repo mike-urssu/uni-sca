@@ -4,4 +4,4 @@ set -euo pipefail
 cd "$(dirname "$0")"
 (cd frontend && npm ci --silent && npm run build -- --logLevel error)
 (cd backend && ./gradlew bootJar -q)
-echo "backend/build/libs/sca.jar"
+echo "backend/build/libs/uni-sca.jar"

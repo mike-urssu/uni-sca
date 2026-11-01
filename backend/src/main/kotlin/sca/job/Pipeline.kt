@@ -2,7 +2,6 @@ package sca.job
 
 import sca.ScaProperties
 import sca.acquire.Acquirer
-import sca.acquire.Target
 import sca.acquire.parseTarget
 import sca.emit.CycloneDxWriter
 import sca.emit.NtiaValidator
@@ -11,6 +10,7 @@ import sca.emit.SpdxWriter
 import sca.enrich.Enricher
 import sca.merge.MergeRules
 import sca.merge.Merger
+import sca.merge.NpmScope
 import sca.model.Json
 import sca.model.ScanResult
 import sca.model.Status
@@ -28,7 +28,11 @@ import java.time.Instant
 import java.util.concurrent.Executors
 import kotlin.io.path.deleteRecursively
 
-data class ScanInput(val target: String, val ref: String? = null, val deep: Boolean = false, val uploadedTar: Path? = null)
+/** productId/versionId/sourceId: the product source a web scan belongs to; null for CLI scans. */
+data class ScanInput(
+    val target: String, val ref: String? = null, val deep: Boolean = false,
+    val productId: String? = null, val versionId: String? = null, val sourceId: String? = null,
+)
 
 /** Runs one scanner container; DockerRunner in production, a fake in tests. */
 fun interface ScanStep { fun run(spec: ContainerSpec, log: Path): Boolean }
@@ -45,7 +49,7 @@ class Pipeline(val props: ScaProperties, val acquirer: Acquirer, val step: ScanS
         val work = Files.createTempDirectory(jobDir.also { Files.createDirectories(it) }, ".work-")
         try {
             progress("acquire")
-            val target = input.uploadedTar?.let { Target.ImageTar(it) } ?: parseTarget(input.target, input.ref)
+            val target = parseTarget(input.target, input.ref)
             val acquired = acquirer.acquire(target, work)
             val info = TargetInfo(acquired.kind, input.target, input.ref, acquired.id)
 
@@ -74,7 +78,7 @@ class Pipeline(val props: ScaProperties, val acquirer: Acquirer, val step: ScanS
             val merged = Merger.merge(normalized, rules)
 
             progress("enrich")
-            val components = enricher.enrichAll(merged.components)
+            val components = enricher.enrichAll(NpmScope.apply(merged.components, info.kind, tools))
 
             progress("emit")
             val warnings = failed.map { Warning("TOOL_FAILED", "$it failed, see raw/$it.log") } +

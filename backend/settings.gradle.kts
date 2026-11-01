@@ -1,1 +1,1 @@
-rootProject.name = "sca"
+rootProject.name = "uni-sca"

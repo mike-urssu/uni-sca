@@ -1,8 +1,14 @@
+import { useEffect, useState } from 'react'
 import { pathTo } from '../graph'
+import { setCopyright } from '../api'
+import { PencilIcon } from './Icons'
 import type { Component, ScanResult, Sourced } from '../types'
 import { DepGraph } from './DepGraph'
 
-interface Props { component: Component; graphRoot: string; result: ScanResult; byKey: Map<string, Component>; onClose: () => void; onSelect: (key: string) => void }
+interface Props {
+  component: Component; graphRoot: string; result: ScanResult; byKey: Map<string, Component>
+  onClose: () => void; onSelect: (key: string) => void; onChanged?: () => void
+}
 
 function Field({ label, v, link }: { label: string; v: Sourced<string> | null; link?: boolean }) {
   return <>
@@ -11,7 +17,39 @@ function Field({ label, v, link }: { label: string; v: Sourced<string> | null; l
   </>
 }
 
-export function ComponentDetail({ component: c, graphRoot, result, byKey, onClose, onSelect }: Props) {
+/** Scanned copyright statements, or a hand-entered text that replaces them for this package version in every product. */
+function Copyright({ c, onChanged }: { c: Component; onChanged?: () => void }) {
+  const [draft, setDraft] = useState<string | null>(null)   // null when not editing
+  const [error, setError] = useState<string | null>(null)
+  const save = (text: string) => setCopyright(c.key, text).then(() => { setDraft(null); setError(null); onChanged?.() }, (e) => setError(e.message))
+  return <>
+    <dt>Copyright</dt>
+    <dd>
+      {draft === null ? <div className="copyright">
+        {c.copyright ? <><pre>{c.copyright.value}</pre> <span className="badge">{c.copyright.source}</span></> : <span className="muted">—</span>}
+        <button className="icon sm" onClick={() => setDraft(c.copyright?.value ?? '')} aria-label="Edit copyright" title="Edit"><PencilIcon size={14} /></button>
+      </div> : <form onSubmit={(e) => { e.preventDefault(); save(draft) }}>
+        <textarea aria-label="Copyright" rows={4} autoFocus value={draft} placeholder="Copyright (c) 2024 Example Corp."
+          onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setDraft(null) } }} />
+        <p className="muted">Applies to {c.name} {c.version} in every product. One statement per line.</p>
+        <div className="row">
+          <button>Save</button>
+          <button type="button" className="secondary" onClick={() => setDraft(null)}>Cancel</button>
+          {c.copyright?.source === 'manual' && <button type="button" className="secondary" onClick={() => save('')}>Use scanned value</button>}
+        </div>
+        {error && <p className="error">{error}</p>}
+      </form>}
+    </dd>
+  </>
+}
+
+export function ComponentDetail({ component: c, graphRoot, result, byKey, onClose, onSelect, onChanged }: Props) {
+  // Esc closes the panel; an open copyright editor takes the first Esc for itself (it stops propagation)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) onClose() }
+    addEventListener('keydown', onKey)
+    return () => removeEventListener('keydown', onKey)
+  }, [onClose])
   const path = pathTo(result, c.key)
   return (
     <aside className="detail">
@@ -27,6 +65,8 @@ export function ComponentDetail({ component: c, graphRoot, result, byKey, onClos
         <Field label="Download URL" v={c.downloadUrl} link />
         <Field label="Registry" v={c.registry} />
         <Field label="Supplier" v={c.supplier} />
+        {/* keyed by component so an open editor doesn't carry over to the next selection */}
+        <Copyright key={c.key} c={c} onChanged={onChanged} />
         <Field label="Source repository" v={c.sourceRepo} />
         <Field label="Scope" v={c.scope} />
         <dt>Hashes</dt>

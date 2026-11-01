@@ -40,7 +40,7 @@ class DockerRunner {
         if (!p.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
             ProcessBuilder("docker", "kill", name).start().waitFor(30, TimeUnit.SECONDS)
             p.destroyForcibly()
-            Files.writeString(log, "\n[sca] timed out after $timeout\n", java.nio.file.StandardOpenOption.APPEND)
+            Files.writeString(log, "\n[uni-sca] timed out after $timeout\n", java.nio.file.StandardOpenOption.APPEND)
             return false
         }
         return p.exitValue() == 0

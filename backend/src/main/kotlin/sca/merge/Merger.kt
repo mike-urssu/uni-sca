@@ -101,11 +101,21 @@ object Merger {
     private fun sameUrl(u: String) = u.removePrefix("git+").removeSuffix("/").removeSuffix(".git")
 
     private val ID_OR_EXPR = Regex("""[A-Za-z0-9.+\-]+""")
+    // GNU ids SPDX deprecated: GPL-2.0 is GPL-2.0-only, GPL-2.0+ is GPL-2.0-or-later (same for LGPL, AGPL, GFDL)
+    private val DEPRECATED_GNU = Regex("""\b((?:A|L)?GPL|GFDL)-(\d\.\d)(\+?)(?![\w.\-])""")
+
+    /** Current SPDX ids for deprecated GNU ones, and no redundant outer parentheses, so equal expressions compare equal. */
+    internal fun canonical(expr: String): String {
+        val s = DEPRECATED_GNU.replace(expr.trim()) { m -> "${m.groupValues[1]}-${m.groupValues[2]}-${if (m.groupValues[3] == "+") "or-later" else "only"}" }
+        val inner = s.removeSurrounding("(", ")")
+        return if (inner != s && '(' !in inner && ')' !in inner) inner.trim() else s
+    }
 
     /** SPDX id/expression as-is, a known license name mapped to its id, anything else → LicenseRef-<sha256 prefix>. */
     internal fun spdx(raw: String, texts: MutableMap<String, String>): String? {
-        val s = raw.trim().takeIf { it.isNotEmpty() && it != "NOASSERTION" && it != "UNKNOWN" } ?: return null
-        val tokens = s.replace("(", " ").replace(")", " ").split(Regex("\\s+")).filter { it !in setOf("AND", "OR", "WITH") }
+        val s = canonical(raw).takeIf { it.isNotEmpty() && it != "NOASSERTION" && it != "UNKNOWN" } ?: return null
+        // "(MIT OR CC0-1.0)" leaves empty tokens at the edges once the parentheses are gone
+        val tokens = s.replace("(", " ").replace(")", " ").split(Regex("\\s+")).filter { it.isNotEmpty() && it !in setOf("AND", "OR", "WITH") }
         if (tokens.all { it.startsWith("LicenseRef-") || (ID_OR_EXPR.matches(it) && isSpdxId(it.removeSuffix("+"))) }) return s
         LicenseResolver.resolve(s, false)?.let { choice ->
             choice.expression?.value?.let { return it }

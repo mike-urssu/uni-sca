@@ -46,7 +46,7 @@ class Enricher(
             if (r.registry == null) r = r.copy(registry = p.qualifiers?.get("repository_url")?.let { Sourced(it, c.foundBy.first()) }
                 ?: DownloadUrls.defaultRegistry(p.type)?.let { Sourced(it, "template") })
             if (p.type !in OS_TYPES && (r.licenses == null || r.sourceRepo == null)) r = depsDev(r, p)
-            if (r.licenses == null) r = clearlyDefined(r, p)
+            if (r.licenses == null || r.copyright == null) r = clearlyDefined(r, p)
         }
         return r.copy(unresolved = missing(r))
     }
@@ -85,7 +85,13 @@ class Enricher(
         val v = p.version ?: return c
         val doc = get("$clearlyDefinedBase/definitions/$type/$provider/${p.namespace?.let(::enc) ?: "-"}/${enc(p.name)}/${enc(v)}") ?: return c
         val declared = doc["licensed"]?.get("declared")?.asString()?.takeIf { it.isNotBlank() && it != "NOASSERTION" && it != "OTHER" }
-        return c.copy(licenses = declared?.let { Sourced(it, "clearlydefined") })
+        // the copyright statements ClearlyDefined harvested from the package's files
+        val parties = doc["licensed"]?.get("facets")?.get("core")?.get("attribution")?.get("parties")
+            ?.mapNotNull { it.asString()?.trim()?.takeIf(String::isNotEmpty) }?.distinct()?.takeIf { it.isNotEmpty() }
+        return c.copy(
+            licenses = c.licenses ?: declared?.let { Sourced(it, "clearlydefined") },
+            copyright = c.copyright ?: parties?.let { Sourced(it.joinToString("\n"), "clearlydefined") },
+        )
     }
 
     /**

@@ -2,7 +2,7 @@
   "results": [
     {
       "source": {
-        "path": "/Users/joonhee.song/projects/sca-integration/frontend/package-lock.json",
+        "path": "/Users/joonhee.song/projects/uni-sca/frontend/package-lock.json",
         "type": "lockfile"
       },
       "packages": [

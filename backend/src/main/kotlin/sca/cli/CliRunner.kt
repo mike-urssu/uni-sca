@@ -16,8 +16,8 @@ sealed interface CliCommand {
 }
 
 const val USAGE = """usage:
-  sca scan <repo-url | image-ref | image.tar> [--ref <branch|tag>] [--deep] [--strict] [-o <dir>]
-  sca serve [--port <port>]"""
+  uni-sca scan <repo-url | image-ref | image.tar> [--ref <branch|tag>] [--deep] [--strict] [-o <dir>]
+  uni-sca serve [--port <port>]"""
 
 fun parseCli(args: Array<String>): CliCommand {
     val a = args.toList()
@@ -61,15 +61,15 @@ class CliRunner(private val pipeline: Pipeline, private val trivyDb: TrivyDb) {
     fun run(c: CliCommand.Scan): Int {
         val r = try {
             Files.createDirectories(c.out)
-            trivyDb.use { pipeline.run(c.out, c.input) { System.err.println("[sca] $it") } }
+            trivyDb.use { pipeline.run(c.out, c.input) { System.err.println("[uni-sca] $it") } }
         } catch (e: Exception) {
-            System.err.println("[sca] failed: ${e.message ?: e.javaClass.simpleName}")
+            System.err.println("[uni-sca] failed: ${e.message ?: e.javaClass.simpleName}")
             null
         }
         r?.let {
-            System.err.println("[sca] ${it.status}: ${it.components.size} components (${it.components.count { c -> c.direct }} direct), " +
+            System.err.println("[uni-sca] ${it.status}: ${it.components.size} components (${it.components.count { c -> c.direct }} direct), " +
                 "${it.components.count { c -> c.needsReview }} need review → ${c.out.toAbsolutePath()}")
-            it.warnings.forEach { w -> System.err.println("[sca] warning ${w.code}: ${w.message}") }
+            it.warnings.forEach { w -> System.err.println("[uni-sca] warning ${w.code}: ${w.message}") }
         }
         return exitCode(r, c.strict)
     }

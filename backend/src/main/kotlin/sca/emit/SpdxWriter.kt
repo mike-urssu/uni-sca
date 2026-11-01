@@ -48,10 +48,12 @@ object SpdxWriter {
             r.edges.mapNotNull { (a, b) -> ids[a]?.let { x -> ids[b]?.let { y -> rel(x, "DEPENDS_ON", y) } } }
         val extracted = r.components.flatMap { it.licenseTexts.entries }.associate { it.toPair() }
             .map { (id, text) -> mapOf("licenseId" to id, "extractedText" to text) }
+        // a product version string is neither unique across products nor URI-safe
+        val nsId = if (r.target.kind == TargetKind.PRODUCT) sha256("${r.target.input}@${r.target.id}") else r.target.id ?: sha256(r.target.input)
         val doc = mapOf(
             "spdxVersion" to "SPDX-2.3", "dataLicense" to "CC0-1.0", "SPDXID" to "SPDXRef-DOCUMENT",
             "name" to "SBOM for ${r.target.input}",
-            "documentNamespace" to "https://sca-integration.local/spdx/${r.target.id ?: sha256(r.target.input)}/${r.createdAt.epochSecond}",
+            "documentNamespace" to "https://uni-sca.local/spdx/$nsId/${r.createdAt.epochSecond}",
             "creationInfo" to mapOf("created" to r.createdAt.toString(), "creators" to listOf("Tool: $TOOL_NAME")),
             "packages" to listOf(target) + packages,
             "relationships" to relationships,

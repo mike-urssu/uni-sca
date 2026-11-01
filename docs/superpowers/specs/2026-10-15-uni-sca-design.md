@@ -1,4 +1,4 @@
-# 통합 SCA 툴 설계 (sca-integration)
+# 통합 SCA 툴 설계 (uni-sca)
 
 - 작성일: 2026-10-15
 - 상태: 리뷰 대기
@@ -36,7 +36,7 @@ GitHub repo URL 또는 도커 이미지(레퍼런스·tar 파일)를 입력받�
 ## 3. 저장소 구성
 
 ```
-sca-integration/
+uni-sca/
 ├── backend/    Spring Boot 3 + Kotlin (Gradle). 엔진, REST, CLI 모드
 ├── frontend/   React + Vite + TypeScript. 빌드 결과는 backend jar의 static 리소스로 포함
 ├── lab/        기존 도구 비교 랩 (현재 frontend/의 demo.sh, summary.sh, server.js, index.html, package.json, out/)

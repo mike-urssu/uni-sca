@@ -36,15 +36,16 @@ data class Component(
     val scope: Sourced<String>? = null, val downloadUrl: Sourced<String>? = null,
     val registry: Sourced<String>? = null, val supplier: Sourced<String>? = null,
     val sourceRepo: Sourced<String>? = null, val locations: Set<String> = emptySet(),
+    val copyright: Sourced<String>? = null,   // one statement per line; from ClearlyDefined, or entered by hand ("manual")
     val foundBy: Set<String>, val direct: Boolean = false,
     val conflicts: List<Conflict> = emptyList(), val unresolved: Set<String> = emptySet(),
     val needsReview: Boolean = false, val licenseTexts: Map<String, String> = emptyMap(), // LicenseRef-* → original text
 )
 
 enum class Status { QUEUED, RUNNING, DONE, PARTIAL, FAILED }
-enum class TargetKind { REPO, IMAGE }
+enum class TargetKind { REPO, IMAGE, PRODUCT }   // PRODUCT: a version's sources combined
 
-data class TargetInfo(val kind: TargetKind, val input: String, val ref: String?, val id: String?) // id: commit SHA or sha256 digest
+data class TargetInfo(val kind: TargetKind, val input: String, val ref: String?, val id: String?) // id: commit SHA, sha256 digest, or product version
 data class ToolRun(val tool: String, val image: String, val ok: Boolean, val millis: Long, val log: String)
 // code: TOOL_FAILED, TRANSITIVE_INCOMPLETE, NTIA_MISSING, SCHEMA_INVALID, NO_COMPONENTS
 data class Warning(val code: String, val message: String)

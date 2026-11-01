@@ -23,7 +23,7 @@ import java.util.Date
 import java.util.UUID
 import org.cyclonedx.model.Component as CdxComponent
 
-const val TOOL_NAME = "sca-integration"
+const val TOOL_NAME = "uni-sca"
 internal const val TARGET_REF = "sca-target"
 
 object CycloneDxWriter {
@@ -37,7 +37,7 @@ object CycloneDxWriter {
                     components = listOf(app(TOOL_NAME, null)) + r.tools.map { app(it.tool, it.image) }
                 }
                 component = CdxComponent().apply {
-                    type = if (r.target.kind == TargetKind.REPO) CdxComponent.Type.APPLICATION else CdxComponent.Type.CONTAINER
+                    type = if (r.target.kind == TargetKind.IMAGE) CdxComponent.Type.CONTAINER else CdxComponent.Type.APPLICATION
                     bomRef = TARGET_REF; name = r.target.input; version = r.target.id
                 }
                 properties = listOf(prop("sca:status", r.status.name)) + r.warnings.map { prop("sca:warning", "${it.code}: ${it.message}") }

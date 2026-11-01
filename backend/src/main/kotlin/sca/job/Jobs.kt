@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
+import kotlin.io.path.deleteRecursively
 
 data class JobStatus(
     val id: String, val status: Status, val stage: String?, val input: ScanInput, val createdAt: Instant,
@@ -59,6 +60,9 @@ class JobStore(val dataDir: Path) {
         Files.list(jobs).use { s -> s.map { it.fileName.toString() }.toList() }.sortedDescending().mapNotNull(::get)
 
     fun dir(id: String): Path = jobs.resolve(id).also { require(JOB_ID.matches(id)) }
+
+    @OptIn(kotlin.io.path.ExperimentalPathApi::class)
+    fun delete(id: String) = dir(id).deleteRecursively()
 
     fun failInterrupted() = list().filter { it.status == Status.RUNNING || it.status == Status.QUEUED }
         .forEach { save(it.copy(status = Status.FAILED, error = "server restarted")) }
@@ -100,16 +104,6 @@ class JobRunner(private val store: JobStore, private val pipeline: Pipeline, pri
 
     fun submit(input: ScanInput): String {
         val job = store.create(input)
-        pool.submit { run(job) }
-        return job.id
-    }
-
-    /** Stores an uploaded image tar as jobs/<id>/upload.tar, then queues the scan. */
-    fun submitUpload(name: String, deep: Boolean, transfer: (Path) -> Unit): String {
-        val created = store.create(ScanInput(name, deep = deep))
-        val tar = store.dir(created.id).resolve("upload.tar")
-        transfer(tar)
-        val job = created.copy(input = created.input.copy(uploadedTar = tar.toAbsolutePath())).also(store::save)
         pool.submit { run(job) }
         return job.id
     }
