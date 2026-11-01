@@ -9,11 +9,11 @@
 //   - Global property DEPLOY_HOST: user@host of the deploy server.
 //   - Optional environment DEPLOY_PORT: SSH port of the deploy server (defaults to 22).
 //
-// Deploy server setup (once, as the DEPLOY_HOST user):
-//   - JDK 21 and Docker; the user is in the docker group (the app runs the scanner containers).
+// Deploy server setup (once, as the DEPLOY_HOST user; the server is macOS):
+//   - brew install openjdk@21 and a running Docker (Colima); the app runs the scanner containers.
 //   - mkdir -p /opt/projects/uni-sca owned by that user.
-//   - loginctl enable-linger <user>, so the user service runs without a login session.
-// The app listens on 127.0.0.1:8080 only (HostGuard); reach it with ssh -L 8080:localhost:8080 <DEPLOY_HOST>.
+// The app runs as a launchd user agent (deploy/uni-sca.plist) and listens on 127.0.0.1:8090 only (HostGuard);
+// reach it with ssh -L 8090:localhost:8090 <DEPLOY_HOST>.
 pipeline {
     agent { label 'macbook' }
 
@@ -31,6 +31,8 @@ pipeline {
         DEPLOY_DIR = '/opt/projects/uni-sca'
         // Keep in step with sca.images.scancode in application.yml.
         SCANCODE_IMAGE = 'sca-scancode:32.5.0'
+        // Keep in step with the Label in deploy/uni-sca.plist.
+        AGENT = 'sca.uni-sca'
     }
 
     stages {
@@ -63,16 +65,21 @@ pipeline {
                         OPTS="-o StrictHostKeyChecking=accept-new"
                         SSH="ssh -p $PORT $OPTS $DEPLOY_HOST"
 
-                        $SSH "mkdir -p $DEPLOY_DIR/docker ~/.config/systemd/user"
+                        $SSH "mkdir -p $DEPLOY_DIR/docker ~/Library/LaunchAgents"
                         scp -P "$PORT" $OPTS backend/build/libs/uni-sca.jar "$DEPLOY_HOST:$DEPLOY_DIR/uni-sca.jar.new"
                         scp -P "$PORT" $OPTS backend/docker/scancode.Dockerfile "$DEPLOY_HOST:$DEPLOY_DIR/docker/"
-                        scp -P "$PORT" $OPTS deploy/uni-sca.service "$DEPLOY_HOST:.config/systemd/user/uni-sca.service"
+                        scp -P "$PORT" $OPTS deploy/uni-sca.plist "$DEPLOY_HOST:Library/LaunchAgents/$AGENT.plist"
                         # ScanCode has no published image; build it on the server once per pinned tag.
-                        $SSH "cd $DEPLOY_DIR && (docker image inspect $SCANCODE_IMAGE > /dev/null 2>&1 \
+                        # A non-interactive ssh shell lacks Homebrew's PATH, where docker lives.
+                        $SSH "export PATH=/opt/homebrew/bin:\\$PATH && cd $DEPLOY_DIR \
+                            && (docker image inspect $SCANCODE_IMAGE > /dev/null 2>&1 \
                             || docker build -t $SCANCODE_IMAGE -f docker/scancode.Dockerfile docker/)"
-                        $SSH "cd $DEPLOY_DIR && mv uni-sca.jar.new uni-sca.jar \
-                            && systemctl --user daemon-reload && systemctl --user enable uni-sca \
-                            && systemctl --user restart uni-sca"
+                        # bootout stops the old process (it may report "not loaded" on the first deploy) and returns before
+                        # the agent is gone; bootstrapping it again too early fails with "5: Input/output error".
+                        $SSH "cd $DEPLOY_DIR && launchctl bootout user/\\$(id -u)/$AGENT 2>/dev/null; \
+                            while launchctl print user/\\$(id -u)/$AGENT > /dev/null 2>&1; do sleep 1; done; \
+                            mv uni-sca.jar.new uni-sca.jar \
+                            && launchctl bootstrap user/\\$(id -u) ~/Library/LaunchAgents/$AGENT.plist"
                     '''
                 }
             }
@@ -85,7 +92,7 @@ pipeline {
                     sh '''
                         ssh -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=accept-new "$DEPLOY_HOST" '
                             for i in $(seq 1 30); do
-                                code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/products)
+                                code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8090/api/products)
                                 [ "$code" = "200" ] && exit 0
                                 sleep 2
                             done
